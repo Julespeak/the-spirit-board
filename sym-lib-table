@@ -1,4 +1,4 @@
 (sym_lib_table
   (version 7)
-  (lib (name "TheSPIRITBoard")(type "KiCad")(uri "${KIPRJMOD}/lib/(the-spirit-board.lib")(options "")(descr ""))
+  (lib (name "TheSPIRITBoard")(type "KiCad")(uri "${KIPRJMOD}/lib/the-spirit-board.kicad_sym")(options "")(descr ""))
 )
