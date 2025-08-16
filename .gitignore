@@ -4,3 +4,4 @@ fp-info-cache
 *.zip
 *.kicad_prl
 *.lck
+*.bak
