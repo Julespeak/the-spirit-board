@@ -1272,6 +1272,519 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "TheSPIRITBoard:FURBY"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "U"
+				(at -1.524 13.462 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" "TheSPIRITBoard:FURBY"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "FURBY_1_1"
+				(rectangle
+					(start -16.51 17.78)
+					(end 16.51 -17.78)
+					(stroke
+						(width 0)
+						(type solid)
+					)
+					(fill
+						(type color)
+						(color 255 255 194 1)
+					)
+				)
+				(pin bidirectional line
+					(at -19.05 13.97 0)
+					(length 2.54)
+					(name "SC1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -19.05 11.43 0)
+					(length 2.54)
+					(name "/FEED"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -19.05 8.89 0)
+					(length 2.54)
+					(name "M_REVERSE"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -19.05 6.35 0)
+					(length 2.54)
+					(name "M_FORWARD"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -19.05 3.81 0)
+					(length 2.54)
+					(name "GEAR_LED"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -19.05 1.27 0)
+					(length 2.54)
+					(name "/POWER_DOWN"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -19.05 -1.27 0)
+					(length 2.54)
+					(name "SOUND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "7"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -19.05 -3.81 0)
+					(length 2.54)
+					(name "LIGHT"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "8"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -19.05 -6.35 0)
+					(length 2.54)
+					(name "UPSIDE_DOWN"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "9"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -19.05 -8.89 0)
+					(length 2.54)
+					(name "TILT"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "10"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -19.05 -11.43 0)
+					(length 2.54)
+					(name "EEPROM_SELECT"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "11"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at -19.05 -13.97 0)
+					(length 2.54)
+					(name "SC2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "12"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 19.05 15.24 180)
+					(length 2.54)
+					(name "+5.31V"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "25"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 19.05 12.7 180)
+					(length 2.54)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "24"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 19.05 10.16 180)
+					(length 2.54)
+					(name "/CAM_HOME"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "23"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 19.05 7.62 180)
+					(length 2.54)
+					(name "GEAR_ROT"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "22"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 19.05 5.08 180)
+					(length 2.54)
+					(name "/BACK"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "21"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 19.05 2.54 180)
+					(length 2.54)
+					(name "/TUMMY"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "20"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 19.05 0 180)
+					(length 2.54)
+					(name "/RESET"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "19"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 19.05 -2.54 180)
+					(length 2.54)
+					(name "SC7"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "18"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 19.05 -5.08 180)
+					(length 2.54)
+					(name "SC6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "17"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 19.05 -7.62 180)
+					(length 2.54)
+					(name "SC5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "16"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 19.05 -10.16 180)
+					(length 2.54)
+					(name "SC4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "15"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 19.05 -12.7 180)
+					(length 2.54)
+					(name "SC3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "14"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 19.05 -15.24 180)
+					(length 2.54)
+					(name "IR"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "13"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "TheSPIRITBoard:KMR211G_LFS"
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -1956,6 +2469,16 @@
 	)
 	(wire
 		(pts
+			(xy 267.97 71.12) (xy 267.97 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0ff568ed-aa56-4a46-a8c6-8831b8a82081")
+	)
+	(wire
+		(pts
 			(xy 99.06 55.88) (xy 99.06 58.42)
 		)
 		(stroke
@@ -1983,6 +2506,16 @@
 			(type default)
 		)
 		(uuid "17693343-cfab-42af-ad31-8d741d411762")
+	)
+	(wire
+		(pts
+			(xy 241.3 68.58) (xy 243.84 68.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1a66bf1b-7318-4357-904f-228b1cd269ab")
 	)
 	(wire
 		(pts
@@ -2216,6 +2749,16 @@
 	)
 	(wire
 		(pts
+			(xy 241.3 71.12) (xy 267.97 71.12)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "56ac09a3-4f61-486c-9ac4-e5120d2bf2b7")
+	)
+	(wire
+		(pts
 			(xy 38.1 165.1) (xy 57.15 165.1)
 		)
 		(stroke
@@ -2443,6 +2986,16 @@
 			(type default)
 		)
 		(uuid "8e84e688-1570-43f7-bd6e-7baf039c9f78")
+	)
+	(wire
+		(pts
+			(xy 241.3 73.66) (xy 243.84 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "938dfd8f-ba11-48a2-ac99-59e12e8833d1")
 	)
 	(wire
 		(pts
@@ -2686,6 +3239,16 @@
 	)
 	(wire
 		(pts
+			(xy 243.84 68.58) (xy 243.84 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cbd54c66-26ec-4f59-92c6-4b5e0322ad85")
+	)
+	(wire
+		(pts
 			(xy 123.19 73.66) (xy 125.73 73.66)
 		)
 		(stroke
@@ -2843,6 +3406,16 @@
 			(justify right bottom)
 		)
 		(uuid "51be9438-e119-4db9-b1e3-712098b0c4e9")
+	)
+	(label "IO0"
+		(at 243.84 73.66 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "6db6e8c0-63a3-4d58-b7bd-eaf02aec4001")
 	)
 	(label "IO20"
 		(at 123.19 96.52 180)
@@ -3667,6 +4240,143 @@
 		)
 	)
 	(symbol
+		(lib_id "TheSPIRITBoard:FURBY")
+		(at 222.25 83.82 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "756c6c85-2ccd-411d-8f5a-39e53208137e")
+		(property "Reference" "U1"
+			(at 222.25 62.23 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "~"
+			(at 222.25 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "TheSPIRITBoard:FURBY"
+			(at 222.25 83.82 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 222.25 83.82 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 222.25 83.82 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "3"
+			(uuid "578c05d8-c50c-4837-b0b5-0f847a5d5b5d")
+		)
+		(pin "5"
+			(uuid "dd2e23ed-3ce5-47f8-a413-753f0397d5dd")
+		)
+		(pin "9"
+			(uuid "69605eba-94fd-4523-a38d-75bcae13063c")
+		)
+		(pin "12"
+			(uuid "8cb2c3e3-72a0-4470-b4ca-10538db88ac5")
+		)
+		(pin "4"
+			(uuid "d91db136-9a93-4ed0-8482-2d0f09cf589c")
+		)
+		(pin "11"
+			(uuid "79b4c880-dc82-4eff-b286-9947a5ed61e1")
+		)
+		(pin "1"
+			(uuid "c37a5bc7-1dd7-4bc5-b06e-59c19b7575fd")
+		)
+		(pin "2"
+			(uuid "da840e68-f01f-4e17-9cb0-b977a001032c")
+		)
+		(pin "6"
+			(uuid "69606b9d-b257-4fbd-b5a5-3a1757cae095")
+		)
+		(pin "7"
+			(uuid "d0d6d9ef-5070-41d3-bfe5-b35e42747698")
+		)
+		(pin "8"
+			(uuid "bb770a71-9db1-4a5d-a7ce-be53eb1c0903")
+		)
+		(pin "10"
+			(uuid "cb481735-4e94-4708-828f-b43693ff3514")
+		)
+		(pin "24"
+			(uuid "96b87431-9709-4e8b-b4a0-f0230b8a0cfb")
+		)
+		(pin "22"
+			(uuid "5e03b75e-ade1-44f7-b054-60a5377347de")
+		)
+		(pin "23"
+			(uuid "a4c5291f-90d6-4a7c-b9d4-4d5246671bdc")
+		)
+		(pin "25"
+			(uuid "4e57c832-b763-4df7-ad7f-56062b8eaf44")
+		)
+		(pin "13"
+			(uuid "3db9d3d4-221c-4d3b-8b2d-98afbbadd822")
+		)
+		(pin "20"
+			(uuid "4923af1e-7c6a-44b6-9524-cf52d0e517b7")
+		)
+		(pin "16"
+			(uuid "9767e85b-a736-4a1e-99d0-9c1dc753d3b0")
+		)
+		(pin "19"
+			(uuid "7a286d63-3da6-415f-b092-34580ef61201")
+		)
+		(pin "14"
+			(uuid "2d06d958-993e-44ee-9fcc-6063354db8b8")
+		)
+		(pin "15"
+			(uuid "ae6a0bcc-09e3-4a96-8f61-f3f15697f1b8")
+		)
+		(pin "17"
+			(uuid "22cdd760-8c48-46cd-9f0a-8497b9d973aa")
+		)
+		(pin "21"
+			(uuid "0b10fc65-80b7-4666-b4f9-4c2428fc85f3")
+		)
+		(pin "18"
+			(uuid "a27d575c-4916-4dd1-affe-bfaf5a9341d4")
+		)
+		(instances
+			(project ""
+				(path "/647d8e4d-af54-40e7-b6a4-72dcab194c10"
+					(reference "U1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 63.5 86.36 0)
 		(unit 1)
@@ -3863,6 +4573,72 @@
 			(project "the-spirit-board"
 				(path "/647d8e4d-af54-40e7-b6a4-72dcab194c10"
 					(reference "C6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+5V")
+		(at 243.84 66.04 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "9056175f-cf42-44f7-819a-9c2165daf6cc")
+		(property "Reference" "#PWR015"
+			(at 243.84 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+5.31V"
+			(at 243.84 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 243.84 66.04 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 243.84 66.04 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+5V\""
+			(at 243.84 66.04 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "8c594cbf-9700-4488-b1f2-e19d26bec68a")
+		)
+		(instances
+			(project "the-spirit-board"
+				(path "/647d8e4d-af54-40e7-b6a4-72dcab194c10"
+					(reference "#PWR015")
 					(unit 1)
 				)
 			)
@@ -4623,6 +5399,72 @@
 			(project ""
 				(path "/647d8e4d-af54-40e7-b6a4-72dcab194c10"
 					(reference "IC1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 267.97 73.66 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "c1a07409-4ecb-4625-9622-a416d663b8b6")
+		(property "Reference" "#PWR016"
+			(at 267.97 80.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 267.97 78.74 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 267.97 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 267.97 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 267.97 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "669c03da-3d46-430b-aba1-4554e3a934dc")
+		)
+		(instances
+			(project "the-spirit-board"
+				(path "/647d8e4d-af54-40e7-b6a4-72dcab194c10"
+					(reference "#PWR016")
 					(unit 1)
 				)
 			)
