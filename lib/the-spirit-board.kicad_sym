@@ -1066,10 +1066,10 @@
 					(color 255 255 194 1)
 				)
 			)
-			(pin bidirectional line
+			(pin input line
 				(at -19.05 13.97 0)
 				(length 2.54)
-				(name "SC1"
+				(name "/INIT"
 					(effects
 						(font
 							(size 1.27 1.27)
@@ -1264,10 +1264,10 @@
 					)
 				)
 			)
-			(pin bidirectional line
+			(pin input line
 				(at -19.05 -13.97 0)
 				(length 2.54)
-				(name "SC2"
+				(name "/CTS"
 					(effects
 						(font
 							(size 1.27 1.27)
@@ -1408,10 +1408,10 @@
 					)
 				)
 			)
-			(pin bidirectional line
+			(pin input line
 				(at 19.05 -2.54 180)
 				(length 2.54)
-				(name "SC7"
+				(name "D3_(SCLK)"
 					(effects
 						(font
 							(size 1.27 1.27)
@@ -1426,10 +1426,10 @@
 					)
 				)
 			)
-			(pin bidirectional line
+			(pin input line
 				(at 19.05 -5.08 180)
 				(length 2.54)
-				(name "SC6"
+				(name "D2_(SDO)"
 					(effects
 						(font
 							(size 1.27 1.27)
@@ -1444,10 +1444,10 @@
 					)
 				)
 			)
-			(pin bidirectional line
+			(pin input line
 				(at 19.05 -7.62 180)
 				(length 2.54)
-				(name "SC5"
+				(name "D1"
 					(effects
 						(font
 							(size 1.27 1.27)
@@ -1462,10 +1462,10 @@
 					)
 				)
 			)
-			(pin bidirectional line
+			(pin input line
 				(at 19.05 -10.16 180)
 				(length 2.54)
-				(name "SC4"
+				(name "D0"
 					(effects
 						(font
 							(size 1.27 1.27)
@@ -1480,10 +1480,10 @@
 					)
 				)
 			)
-			(pin bidirectional line
+			(pin output line
 				(at 19.05 -12.7 180)
 				(length 2.54)
-				(name "SC3"
+				(name "/RTS_(SDI)"
 					(effects
 						(font
 							(size 1.27 1.27)
