@@ -4113,6 +4113,12 @@
 		(uuid "7274a6ca-eece-4d91-97ec-8730cf884dd5")
 	)
 	(junction
+		(at 133.35 85.09)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "73047b85-4e39-4c14-b3df-55e6c9c76f80")
+	)
+	(junction
 		(at 77.47 138.43)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4161,6 +4167,12 @@
 		(uuid "8a0cfec7-c9a7-40df-bf2e-b9e1f84e324d")
 	)
 	(junction
+		(at 20.32 223.52)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "8ee2e79e-f122-4c26-ac6d-ec127e48f5a2")
+	)
+	(junction
 		(at 57.15 191.77)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4171,12 +4183,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "8f9c4b76-bf83-4684-8891-6176b67cdaf1")
-	)
-	(junction
-		(at 133.35 97.79)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "90d54899-918e-4d2f-a1a3-f5af925bc944")
 	)
 	(junction
 		(at 57.15 158.75)
@@ -4195,12 +4201,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "9f334f20-deae-4579-8383-c44876a30424")
-	)
-	(junction
-		(at 20.32 223.52)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "a0b9ec8f-b979-4479-8ee8-69eaf7593df6")
 	)
 	(junction
 		(at 29.21 97.79)
@@ -4393,6 +4393,16 @@
 	(no_connect
 		(at 121.92 161.29)
 		(uuid "fe36e2d1-05a1-4819-94f2-1921afae5e15")
+	)
+	(wire
+		(pts
+			(xy 17.78 223.52) (xy 20.32 223.52)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "018c55fc-e4b9-495a-9fc0-28bb8789127c")
 	)
 	(wire
 		(pts
@@ -4773,16 +4783,6 @@
 			(type default)
 		)
 		(uuid "1be67d18-6c66-429d-9845-207c2643f02e")
-	)
-	(wire
-		(pts
-			(xy 17.78 223.52) (xy 20.32 223.52)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1d0dae9e-da89-40ad-8eff-55cab6f950d2")
 	)
 	(wire
 		(pts
@@ -5273,16 +5273,6 @@
 			(type default)
 		)
 		(uuid "43b01ef3-b05a-4f02-8f4f-e7700156d30a")
-	)
-	(wire
-		(pts
-			(xy 133.35 97.79) (xy 135.89 97.79)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "4519c4df-0559-4684-acda-209fdf1a3412")
 	)
 	(wire
 		(pts
@@ -6113,6 +6103,16 @@
 			(type default)
 		)
 		(uuid "7d2df632-13b5-47f7-95b4-58ff0bf15740")
+	)
+	(wire
+		(pts
+			(xy 133.35 85.09) (xy 135.89 85.09)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7d62fb6a-d37a-46e8-8c3f-d3f6990c1f2a")
 	)
 	(wire
 		(pts
@@ -8595,7 +8595,7 @@
 		(uuid "d72d108d-234c-4456-9782-2de2f67ff7e9")
 	)
 	(label "IO9"
-		(at 135.89 97.79 0)
+		(at 135.89 85.09 0)
 		(effects
 			(font
 				(size 1.27 1.27)
