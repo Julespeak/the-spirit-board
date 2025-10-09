@@ -55,18 +55,18 @@
 	)
 	(attr smd)
 	(fp_line
-		(start 0 0)
-		(end 25 0)
+		(start 0 -20)
+		(end 20 -20)
 		(stroke
 			(width 0.05)
 			(type default)
 		)
 		(layer "Edge.Cuts")
-		(uuid "93c0873b-dd3a-4d30-a017-a352d105017e")
+		(uuid "f0430d8d-6f70-4635-8216-097565ac035c")
 	)
 	(fp_line
 		(start 0 20)
-		(end 0 0)
+		(end 0 -20)
 		(stroke
 			(width 0.05)
 			(type default)
@@ -93,6 +93,26 @@
 		)
 		(layer "Edge.Cuts")
 		(uuid "eb60b69c-5aca-434f-91b5-186ecb75817d")
+	)
+	(fp_line
+		(start 20 -20)
+		(end 20 0)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "Edge.Cuts")
+		(uuid "d724d916-aab3-4199-9b2f-91fce496a74b")
+	)
+	(fp_line
+		(start 20 0)
+		(end 25 0)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "Edge.Cuts")
+		(uuid "93c0873b-dd3a-4d30-a017-a352d105017e")
 	)
 	(fp_line
 		(start 22.5 20)
