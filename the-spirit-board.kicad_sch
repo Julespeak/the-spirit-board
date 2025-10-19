@@ -10101,7 +10101,7 @@
 				)
 			)
 		)
-		(property "Value" "B340A-E3/61T"
+		(property "Value" "B0530WSHE3-TP"
 			(at 194.6275 44.45 0)
 			(effects
 				(font
@@ -10109,7 +10109,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Diode_SMD:D_SMA"
+		(property "Footprint" "Diode_SMD:D_SOD-323"
 			(at 194.31 48.26 0)
 			(effects
 				(font
