@@ -1,0 +1,10 @@
+### Footprint positions - created on 2025-10-19T20:40:23-0400 ###
+### Printed by KiCad version 9.0.4
+## Unit = mm, Angle = deg.
+## Side : top
+# Ref     Val                  Package                   PosX       PosY       Rot  Side
+D2        LED                  LED_0603_1608Metric   156.0830  -109.4740  180.0000  top
+IC1       ESP32-C6-WROOM-1-N8  ESP32C6WROOM1N8       153.6600  -132.0550  -90.0000  top
+R34       5.1k                 R_0603_1608Metric     153.0350  -109.4740    0.0000  top
+U1        ~                    FURBY                 140.0000  -122.0000    0.0000  top
+## End

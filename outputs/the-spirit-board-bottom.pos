@@ -1,0 +1,62 @@
+### Footprint positions - created on 2025-10-19T20:40:23-0400 ###
+### Printed by KiCad version 9.0.4
+## Unit = mm, Angle = deg.
+## Side : bottom
+# Ref     Val              Package                 PosX       PosY       Rot  Side
+C1        1uF              C_0603_1608Metric   141.0970  -118.3000  -90.0000  bottom
+C2        0.1uF            C_0402_1005Metric   143.5000  -113.5310    0.0000  bottom
+C3        0.1uF            C_0402_1005Metric   147.9840  -106.1720   90.0000  bottom
+C4        10uF             C_0805_2012Metric   147.5000  -108.9000  -90.0000  bottom
+C5        10uF             C_0805_2012Metric   153.0250  -104.3500  -90.0000  bottom
+C6        10uF             C_0805_2012Metric   150.2500  -105.0500  180.0000  bottom
+C7        0.1uF            C_0603_1608Metric   146.0000  -104.0000  -90.0000  bottom
+C8        1uF              C_0603_1608Metric   144.5000  -104.0000  -90.0000  bottom
+D1        B0530WSHE3-TP    D_SOD-323           156.0000  -108.0000  -90.0000  bottom
+IC2       AP2112K-3.3TRG1  SOT95P285X140-5N    150.7220  -107.9170  180.0000  bottom
+IC3       ICS-43434        ICS43434            143.1910  -107.8340  180.0000  bottom
+J1        RAHUC31AUTR      RAHUC31AUTR         145.1330  -127.5950   90.0000  bottom
+Q1        BSS138           SOT95P240X120-3N    155.6450  -138.0490    0.0000  bottom
+Q2        BSS138           SOT95P240X120-3N    155.6450  -112.2680    0.0000  bottom
+Q3        BSS138           SOT95P240X120-3N    155.6450  -119.6340    0.0000  bottom
+Q4        BSS138           SOT95P240X120-3N    155.6450  -115.9510    0.0000  bottom
+Q5        BSS138           SOT95P240X120-3N    155.6450  -123.3170    0.0000  bottom
+Q6        BSS138           SOT95P240X120-3N    155.6450  -127.0000    0.0000  bottom
+Q7        BSS138           SOT95P240X120-3N    155.6450  -134.3660    0.0000  bottom
+Q8        BSS138           SOT95P240X120-3N    155.6450  -130.6830    0.0000  bottom
+Q9        DMG3415U-7       SOT96P240X110-3N    156.9600  -104.4500   90.0000  bottom
+R1        5.1k             R_0603_1608Metric   141.0620  -115.1250  -90.0000  bottom
+R2        100k             R_0603_1608Metric   154.0000  -107.9170  -90.0000  bottom
+R3        4.7k             R_0603_1608Metric   150.4950  -138.8110    0.0000  bottom
+R4        10k              R_0603_1608Metric   152.7810  -138.0490   90.0000  bottom
+R5        2.2k             R_0603_1608Metric   158.4960  -138.8110   90.0000  bottom
+R6        3.8k             R_0603_1608Metric   152.9080  -140.7160  180.0000  bottom
+R7        6.2k             R_0603_1608Metric   149.8600  -140.7160    0.0000  bottom
+R8        4.7k             R_0603_1608Metric   150.4950  -137.2870    0.0000  bottom
+R9        4.7k             R_0603_1608Metric   147.4470  -137.2870  180.0000  bottom
+R10       10k              R_0603_1608Metric   152.7940  -112.3340   90.0000  bottom
+R11       10k              R_0603_1608Metric   158.4960  -113.0300   90.0000  bottom
+R12       19k              R_0603_1608Metric   159.6390  -141.2240  180.0000  bottom
+R13       31k              R_0603_1608Metric   155.9560  -140.7160    0.0000  bottom
+R14       10k              R_0603_1608Metric   152.7940  -119.7000   90.0000  bottom
+R15       10k              R_0603_1608Metric   158.4960  -120.3960   90.0000  bottom
+R16       10k              R_0603_1608Metric   152.8250  -116.0250   90.0000  bottom
+R17       10k              R_0603_1608Metric   158.4960  -116.7130   90.0000  bottom
+R18       10k              R_0603_1608Metric   152.7940  -123.2560   90.0000  bottom
+R19       10k              R_0603_1608Metric   158.4960  -124.0790   90.0000  bottom
+R20       10k              R_0603_1608Metric   152.7940  -127.0660   90.0000  bottom
+R21       10k              R_0603_1608Metric   158.4960  -127.7620   90.0000  bottom
+R22       4.7k             R_0603_1608Metric   146.8120  -140.7160    0.0000  bottom
+R23       4.7k             R_0603_1608Metric   146.8120  -139.0650    0.0000  bottom
+R24       4.7k             R_0603_1608Metric   151.0030  -118.4910  -90.0000  bottom
+R25       3.8k             R_0603_1608Metric   151.0030  -132.7150   90.0000  bottom
+R26       6.2k             R_0603_1608Metric   149.3520  -118.4910  -90.0000  bottom
+R27       10k              R_0603_1608Metric   152.7940  -134.3660   90.0000  bottom
+R28       10k              R_0603_1608Metric   158.4960  -135.1280   90.0000  bottom
+R29       5.1k             R_0603_1608Metric   147.5740  -135.3000  180.0000  bottom
+R30       5.1k             R_0603_1608Metric   144.1450  -135.3000  180.0000  bottom
+R31       10k              R_0603_1608Metric   152.7940  -130.6830   90.0000  bottom
+R32       10k              R_0603_1608Metric   158.4960  -131.4450   90.0000  bottom
+R33       100k             R_0603_1608Metric   158.4960  -109.0300   90.0000  bottom
+S1        KMR211G_LFS      KMR_2               143.5000  -116.7310  -90.0000  bottom
+S2        KMR211G_LFS      KMR_2               146.9010  -116.7310  -90.0000  bottom
+## End
