@@ -105,8 +105,8 @@
 			(plot_on_all_layers_selection 0x00000000_00000000_00000000_00000000)
 			(disableapertmacros no)
 			(usegerberextensions yes)
-			(usegerberattributes yes)
-			(usegerberadvancedattributes yes)
+			(usegerberattributes no)
+			(usegerberadvancedattributes no)
 			(creategerberjobfile yes)
 			(dashed_line_dash_ratio 12.000000)
 			(dashed_line_gap_ratio 3.000000)
@@ -132,7 +132,7 @@
 			(hidednponfab no)
 			(sketchdnponfab yes)
 			(crossoutdnponfab yes)
-			(subtractmaskfromsilk no)
+			(subtractmaskfromsilk yes)
 			(outputformat 1)
 			(mirror no)
 			(drillshape 0)
@@ -17384,7 +17384,7 @@
 			)
 		)
 	)
-	(gr_text "The S.P.I.R.T. Board\nJ. Stuart\n10/19/2025\nhttps://github.com/Julespeak/the-spirit-board"
+	(gr_text "The S.P.I.R.I.T. Board\nJ. Stuart\n10/19/2025\nhttps://github.com/Julespeak/the-spirit-board"
 		(at 159.3 105.825 0)
 		(layer "F.SilkS")
 		(uuid "291b4685-907e-4f78-b7da-b99b14ad2fb0")

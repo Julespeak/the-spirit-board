@@ -1,21 +1,20 @@
-%TF.GenerationSoftware,KiCad,Pcbnew,9.0.4*%
-%TF.CreationDate,2025-10-19T20:36:54-04:00*%
-%TF.ProjectId,the-spirit-board,7468652d-7370-4697-9269-742d626f6172,rev?*%
-%TF.SameCoordinates,Original*%
-%TF.FileFunction,Profile,NP*%
+G04 #@! TF.GenerationSoftware,KiCad,Pcbnew,9.0.4*
+G04 #@! TF.CreationDate,2025-10-20T22:41:46-04:00*
+G04 #@! TF.ProjectId,the-spirit-board,7468652d-7370-4697-9269-742d626f6172,rev?*
+G04 #@! TF.SameCoordinates,Original*
+G04 #@! TF.FileFunction,Profile,NP*
 %FSLAX46Y46*%
 G04 Gerber Fmt 4.6, Leading zero omitted, Abs format (unit mm)*
-G04 Created by KiCad (PCBNEW 9.0.4) date 2025-10-19 20:36:54*
+G04 Created by KiCad (PCBNEW 9.0.4) date 2025-10-20 22:41:46*
 %MOMM*%
 %LPD*%
 G01*
 G04 APERTURE LIST*
-%TA.AperFunction,Profile*%
+G04 #@! TA.AperFunction,Profile*
 %ADD10C,0.050000*%
-%TD*%
+G04 #@! TD*
 G04 APERTURE END LIST*
 D10*
-%TO.C,U1*%
 X140000000Y-102000000D02*
 X160000000Y-102000000D01*
 X140000000Y-142000000D02*
@@ -36,5 +35,4 @@ X165000000Y-122000000D02*
 X165000000Y-142000000D01*
 X165000000Y-142000000D02*
 X162500000Y-142000000D01*
-%TD*%
 M02*
