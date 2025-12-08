@@ -1,3 +1,10 @@
+//   _____  _   _ __      __ ____   _  __ ______  _____  
+//  |_   _|| \ | |\ \    / // __ \ | |/ /|  ____||  __ \ 
+//    | |  |  \| | \ \  / /| |  | || ' / | |__   | |__) |
+//    | |  | . ` |  \ \/ / | |  | ||  <  |  __|  |  _  / 
+//   _| |_ | |\  |   \  /  | |__| || . \ | |____ | | \ \ 
+//  |_____||_| \_|    \/    \____/ |_|\_\|______||_|  \_\
+//                                                      
 // SPIRIT board "Invoker": WiFi + OTA + Furby control
 //
 // - Connects to WiFi "RenegadeScience_Guest"
@@ -10,6 +17,7 @@
 //     0x02 = Send nibble stream (Furby bus)
 //     0x03 = Drive motor forward  (64-bit duration in microseconds)
 //     0x04 = Drive motor backward (64-bit duration in microseconds)
+//     0x05 = Read last /RTS high-time samples (up to 300 entries)
 //     0xFF = Ping command → replies "31337"
 //
 //   Format examples:
@@ -50,11 +58,12 @@ const int PIN_MOTOR_BWD   = 8;
 // CONTROL BYTES
 // =========================
 enum ControlMode : uint8_t {
-  CTRL_INIT_COPROCESSOR   = 0x01,
-  CTRL_SEND_NIBBLE_STREAM = 0x02,
-  CTRL_MOTOR_FORWARD      = 0x03,
-  CTRL_MOTOR_BACKWARD     = 0x04,
-  CTRL_PING               = 0xFF    // NEW: responds "31337"
+  CTRL_INIT_COPROCESSOR    = 0x01,
+  CTRL_SEND_NIBBLE_STREAM  = 0x02,
+  CTRL_MOTOR_FORWARD       = 0x03,
+  CTRL_MOTOR_BACKWARD      = 0x04,
+  CTRL_READ_RTS_HISTORY    = 0x05,  // NEW: read last RTS high-time samples
+  CTRL_PING                = 0xFF   // responds "31337"
 };
 
 // =========================
@@ -71,6 +80,22 @@ const uint64_t MAX_MOTOR_US   = 4000000000ULL;
 // TCP SERVER
 // =========================
 WiFiServer tcpServer(5000);
+
+// =========================
+// RTS HIGH-TIME HISTORY
+// =========================
+const size_t RTS_HISTORY_LEN = 300;
+uint32_t rtsHighDurations[RTS_HISTORY_LEN];
+size_t   rtsHistoryIndex = 0;   // Next write position
+size_t   rtsHistoryCount = 0;   // Number of valid samples (<= RTS_HISTORY_LEN)
+
+void recordRTSHighDuration(uint32_t duration_us) {
+  rtsHighDurations[rtsHistoryIndex] = duration_us;
+  rtsHistoryIndex = (rtsHistoryIndex + 1) % RTS_HISTORY_LEN;
+  if (rtsHistoryCount < RTS_HISTORY_LEN) {
+    rtsHistoryCount++;
+  }
+}
 
 // =========================
 // WIFI + OTA
@@ -95,9 +120,29 @@ void setupOTA() {
 // =========================
 bool waitForRTSReady(uint32_t timeout_us) {
   uint32_t start = micros();
+  bool sawHigh = false;
+  uint32_t highStart = 0;
+
   while ((micros() - start) < timeout_us) {
-    if (digitalRead(PIN_RTS) == LOW) return true;
+    int level = digitalRead(PIN_RTS);
+
+    if (level == HIGH) {
+      // We are in a "not ready / busy" window.
+      if (!sawHigh) {
+        sawHigh = true;
+        highStart = micros();
+      }
+    } else { // level == LOW
+      // Line is ready. If we previously saw a HIGH window, record its duration.
+      if (sawHigh) {
+        uint32_t highDuration = micros() - highStart;
+        recordRTSHighDuration(highDuration);
+      }
+      return true;
+    }
   }
+
+  // Timed out before seeing RTS go LOW.
   return false;
 }
 
@@ -192,6 +237,27 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       if (sendNibbleList(payload, pcount)) client.println("[OK] Nibbles sent");
       else client.println("[ERROR] RTS timeout");
       break;
+
+    case CTRL_READ_RTS_HISTORY: {
+      // Dump the last recorded RTS high-time samples in microseconds.
+      client.print("[RTS] ");
+      client.print(rtsHistoryCount);
+      client.print(" samples: ");
+
+      if (rtsHistoryCount == 0) {
+        client.println("none");
+      } else {
+        // Oldest sample first.
+        for (size_t i = 0; i < rtsHistoryCount; i++) {
+          size_t idx = (rtsHistoryIndex + RTS_HISTORY_LEN - rtsHistoryCount + i) % RTS_HISTORY_LEN;
+          uint32_t val = rtsHighDurations[idx];
+          client.print(val);
+          if (i + 1 < rtsHistoryCount) client.print(",");
+        }
+        client.println();
+      }
+      break;
+    }
 
     case CTRL_MOTOR_FORWARD:
     case CTRL_MOTOR_BACKWARD: {
