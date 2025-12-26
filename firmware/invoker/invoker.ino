@@ -74,6 +74,8 @@ const uint32_t CTS_PULSE_US   = 5;
 
 const uint32_t INIT_PULSE_MS  = 10;
 
+const uint32_t INIT_RTS_GAP_US = 10000;  // 10 ms of LOW on /RTS marks end of init pulse train
+
 const uint64_t MAX_MOTOR_US   = 4000000000ULL;
 
 // =========================
@@ -88,6 +90,11 @@ const size_t RTS_HISTORY_LEN = 300;
 uint32_t rtsHighDurations[RTS_HISTORY_LEN];
 size_t   rtsHistoryIndex = 0;   // Next write position
 size_t   rtsHistoryCount = 0;   // Number of valid samples (<= RTS_HISTORY_LEN)
+
+void clearRTSHistory() {
+  rtsHistoryIndex = 0;
+  rtsHistoryCount = 0;
+}
 
 void recordRTSHighDuration(uint32_t duration_us) {
   rtsHighDurations[rtsHistoryIndex] = duration_us;
@@ -118,32 +125,79 @@ void setupOTA() {
 // =========================
 // FURBY BUS HELPERS
 // =========================
-bool waitForRTSReady(uint32_t timeout_us) {
-  uint32_t start = micros();
-  bool sawHigh = false;
+bool waitForRTSReady(uint32_t timeout_us, bool logDuration) {
+  uint32_t start     = micros();
   uint32_t highStart = 0;
+  bool     sawHigh   = false;
 
-  while ((micros() - start) < timeout_us) {
+  // Read the initial level
     int level = digitalRead(PIN_RTS);
 
+  // -----------------------------------------------------------
+  // Stage 1: Wait for LOW -> HIGH (start of busy window)
+  // -----------------------------------------------------------
+
+  if (level == HIGH) {
+    // We entered while RTS is already HIGH: treat this as
+    // the start of the busy interval.
+    sawHigh   = true;
+    highStart = micros();
+  } else {
+    // RTS is LOW: wait for it to go HIGH, but don't block forever.
+    while ((micros() - start) < timeout_us) {
+      level = digitalRead(PIN_RTS);
     if (level == HIGH) {
-      // We are in a "not ready / busy" window.
-      if (!sawHigh) {
-        sawHigh = true;
+        sawHigh   = true;
         highStart = micros();
+        break;
       }
-    } else { // level == LOW
-      // Line is ready. If we previously saw a HIGH window, record its duration.
-      if (sawHigh) {
-        uint32_t highDuration = micros() - highStart;
-        recordRTSHighDuration(highDuration);
+    }
+  }
+
+  // If we never saw RTS go HIGH within the timeout, we likely
+  // missed a very short pulse or there was no busy interval at all.
+  // In either case, record 0 (if requested) so the caller sees that
+  // "something" happened for this nibble, and treat the bus as ready.
+  if (!sawHigh) {
+    if (logDuration) {
+      recordRTSHighDuration(0);
+    }
+    // Line is either LOW (already ready) or toggled too fast for us
+    // to see; from the caller's perspective, we can continue.
+    return true;
+  }
+
+  // -----------------------------------------------------------
+  // Stage 2: Wait for HIGH -> LOW (end of busy window)
+  // -----------------------------------------------------------
+
+  while ((micros() - start) < timeout_us) {
+    level = digitalRead(PIN_RTS);
+    if (level == LOW) {
+      if (logDuration) {
+        uint32_t duration = micros() - highStart;
+        recordRTSHighDuration(duration);
       }
       return true;
     }
   }
 
-  // Timed out before seeing RTS go LOW.
+  // -----------------------------------------------------------
+  // Timeout: RTS stayed HIGH (or never fell) for too long.
+  // We still log whatever duration we observed, but signal
+  // failure back to the caller.
+  // -----------------------------------------------------------
+
+  if (logDuration) {
+    uint32_t duration = micros() - highStart;
+    recordRTSHighDuration(duration);
+  }
   return false;
+}
+
+// Convenience wrapper: default is to log
+bool waitForRTSReady(uint32_t timeout_us) {
+  return waitForRTSReady(timeout_us, true);
 }
 
 void sendNibble(uint8_t nibble) {
@@ -160,9 +214,22 @@ void sendNibble(uint8_t nibble) {
 }
 
 bool sendNibbleList(const uint8_t* list, size_t count) {
+  if (count == 0) return true;
+
+  // Make sure bus is ready before we begin, but don't log this interval
+  if (!waitForRTSReady(RTS_TIMEOUT_US, false)) return false;
+
+  // Reset the history so it corresponds only to this stream
+  clearRTSHistory();
+
   for (size_t i = 0; i < count; i++) {
-    if (!waitForRTSReady(RTS_TIMEOUT_US)) return false;
+    // Send the nibble
     sendNibble(list[i]);
+
+    // Now measure how long RTS stays HIGH until it goes LOW (busy time for this nibble)
+    if (!waitForRTSReady(RTS_TIMEOUT_US, true)) {
+      return false;
+    }
   }
   return true;
 }
@@ -190,10 +257,70 @@ size_t parseHexNibbles(const String &s, uint8_t *out, size_t max) {
 // HIGH-LEVEL ACTIONS
 // =========================
 
-void doInitCoprocessor() {
+size_t doInitCoprocessor() {
+//  // Clear any previous RTS history so this capture is only the init pulse train.
+//  clearRTSHistory();
+
+  // Pulse /INIT LOW then back HIGH to kick the coprocessor.
   digitalWrite(PIN_INIT, LOW);
   delay(INIT_PULSE_MS);
   digitalWrite(PIN_INIT, HIGH);
+
+  // Clear any previous RTS history so this capture is only the init pulse train.
+  clearRTSHistory();
+
+  // Now watch /RTS for a sequence of HIGH pulses. For each pulse, we measure how
+  // long /RTS stays HIGH. We stop when /RTS has remained LOW for more than
+  // INIT_RTS_GAP_US (10 ms), or when a reasonable overall timeout expires.
+  const uint32_t overallTimeoutUs = 500000;  // 0.5 s safety cap
+  uint32_t startOverall = micros();
+
+  bool     inHigh      = false;
+  uint32_t highStartUs = 0;
+
+  // Track how long we've been continuously LOW between pulses.
+  uint32_t lowStartUs = micros();
+  int lastLevel = digitalRead(PIN_RTS);
+
+  if (lastLevel == LOW) {
+    lowStartUs = micros();
+  } else {
+    // If we start HIGH, treat as already in a pulse.
+    inHigh      = true;
+    highStartUs = micros();
+  }
+
+  while ((micros() - startOverall) < overallTimeoutUs) {
+    int level = digitalRead(PIN_RTS);
+    uint32_t now = micros();
+
+    if (!inHigh) {
+      // Currently LOW. Look for LOW -> HIGH to start a new pulse.
+      if (level == HIGH) {
+        inHigh      = true;
+        highStartUs = now;
+      } else {
+        // Still LOW; see if we've been LOW long enough to declare "done".
+        if ((now - lowStartUs) >= INIT_RTS_GAP_US) {
+          break;
+        }
+      }
+    } else {
+      // Currently in a HIGH pulse. Look for HIGH -> LOW to finish the pulse.
+      if (level == LOW) {
+        uint32_t duration = now - highStartUs;
+        recordRTSHighDuration(duration);
+        inHigh     = false;
+        lowStartUs = now;
+      }
+    }
+
+    // Small delay to avoid a completely hot spin; still much shorter than the
+    // expected ~740 µs HIGH/LOW windows.
+    delayMicroseconds(1);
+  }
+
+  return rtsHistoryCount;
 }
 
 void driveMotorForward(uint64_t us) {
@@ -227,16 +354,56 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       client.println("31337");
       break;
 
-    case CTRL_INIT_COPROCESSOR:
-      doInitCoprocessor();
-      client.println("[OK] INIT coprocessor");
-      break;
+    case CTRL_INIT_COPROCESSOR: {
+      // Perform the /INIT pulse and capture the resulting /RTS HIGH pulses.
+      size_t count = doInitCoprocessor();
 
-    case CTRL_SEND_NIBBLE_STREAM:
-      if (pcount == 0) { client.println("[ERROR] No payload"); return; }
-      if (sendNibbleList(payload, pcount)) client.println("[OK] Nibbles sent");
-      else client.println("[ERROR] RTS timeout");
+      client.print("[RTS_INIT] ");
+      client.print(count);
+      client.print(" samples: ");
+
+      if (count == 0) {
+        client.println("none");
+      } else {
+        // Oldest sample first, same ordering as CTRL_READ_RTS_HISTORY.
+        for (size_t i = 0; i < count; i++) {
+          size_t idx = (rtsHistoryIndex + RTS_HISTORY_LEN - count + i) % RTS_HISTORY_LEN;
+          uint32_t val = rtsHighDurations[idx];
+          client.print(val);
+          if (i + 1 < count) client.print(",");
+        }
+        client.println();
+      }
       break;
+    }
+
+    case CTRL_SEND_NIBBLE_STREAM: {
+      if (pcount == 0) {
+        client.println("[ERROR] No payload");
+        return;
+      }
+
+      // --- Sanity: echo back exactly what we decoded from the hex line ---
+      client.print("[NIBBLES] count=");
+      client.print(pcount);
+      client.print(" : ");
+
+      for (size_t i = 0; i < pcount; i++) {
+        // Print each payload byte as hex; if you know each byte is just a nibble (0–15),
+        // this will print a single hex digit per entry.
+        client.print(payload[i], HEX);
+        if (i + 1 < pcount) client.print(",");
+      }
+      client.println();  // end the [NIBBLES] line
+      // -------------------------------------------------------------------
+
+      if (sendNibbleList(payload, pcount)) {
+        client.println("[OK] Nibbles sent");
+      } else {
+        client.println("[ERROR] RTS timeout");
+      }
+      break;
+    }
 
     case CTRL_READ_RTS_HISTORY: {
       // Dump the last recorded RTS high-time samples in microseconds.
@@ -302,9 +469,13 @@ void handleClient(WiFiClient &client) {
 // =========================
 void setup() {
   pinMode(PIN_D1, OUTPUT);
+  digitalWrite(PIN_D1, LOW);
   pinMode(PIN_D2, OUTPUT);
+  digitalWrite(PIN_D2, LOW);
   pinMode(PIN_D3, OUTPUT);
+  digitalWrite(PIN_D3, LOW);
   pinMode(PIN_D4, OUTPUT);
+  digitalWrite(PIN_D4, LOW);
 
   pinMode(PIN_CTS, OUTPUT);
   digitalWrite(PIN_CTS, HIGH);
