@@ -17,13 +17,16 @@
 //     0x02 = Send nibble stream (Furby bus)
 //     0x03 = Drive motor forward  (64-bit duration in microseconds)
 //     0x04 = Drive motor backward (64-bit duration in microseconds)
-//     0x05 = Read last /RTS high-time samples (up to 300 entries)
-//     0xFF = Ping command → replies "31337"
+//     0x05 = Read last /RTS high-time samples
+//     0x06 = Debug: directly drive CTS + D1–D4 from a 5-bit pattern
+//     0x07 = Poll /RTS + feed/tummy/back buttons and store snapshot
+//     0xFF = Ping (responds "31337")
 //
 //   Format examples:
 //     01
 //     02 7F341F7F71C0000F000
 //     03 00000000000F4240
+//     07
 //     FF
 // - Non-hex characters ignored.
 
@@ -54,6 +57,10 @@ const int PIN_INIT        = 0;
 const int PIN_MOTOR_FWD   = 7;
 const int PIN_MOTOR_BWD   = 8;
 
+const int PIN_BTN_FEED  = 15;
+const int PIN_BTN_TUMMY = 20;
+const int PIN_BTN_BACK  = 21;
+
 // =========================
 // CONTROL BYTES
 // =========================
@@ -62,7 +69,9 @@ enum ControlMode : uint8_t {
   CTRL_SEND_NIBBLE_STREAM  = 0x02,
   CTRL_MOTOR_FORWARD       = 0x03,
   CTRL_MOTOR_BACKWARD      = 0x04,
-  CTRL_READ_RTS_HISTORY    = 0x05,  // NEW: read last RTS high-time samples
+  CTRL_READ_RTS_HISTORY    = 0x05,  // read last RTS high-time samples
+  CTRL_DEBUG_BUS_DRIVE     = 0x06,  // directly drive CTS + D1–D4
+  CTRL_POLL_INPUTS         = 0x07,  // sample RTS + buttons into snapshot register
   CTRL_PING                = 0xFF   // responds "31337"
 };
 
@@ -102,6 +111,47 @@ void recordRTSHighDuration(uint32_t duration_us) {
   if (rtsHistoryCount < RTS_HISTORY_LEN) {
     rtsHistoryCount++;
   }
+}
+
+// =========================
+// INPUT SNAPSHOT REGISTER
+// =========================
+//
+// Bit layout for the "state" field:
+//   bit0 -> RTS   (1 = HIGH, 0 = LOW)
+//   bit1 -> FEED  (1 = HIGH, 0 = LOW)
+//   bit2 -> TUMMY (1 = HIGH, 0 = LOW)
+//   bit3 -> BACK  (1 = HIGH, 0 = LOW)
+
+enum InputBits : uint8_t {
+  INPUT_BIT_RTS   = 0x01,
+  INPUT_BIT_FEED  = 0x02,
+  INPUT_BIT_TUMMY = 0x04,
+  INPUT_BIT_BACK  = 0x08
+};
+
+struct InputSnapshot {
+  uint32_t timestamp_ms;
+  uint8_t  state;
+};
+
+InputSnapshot g_lastInputSnapshot = {0, 0};
+
+void sampleFurbyInputs() {
+  uint8_t s = 0;
+
+  int rts   = digitalRead(PIN_RTS);
+  int feed  = digitalRead(PIN_BTN_FEED);
+  int tummy = digitalRead(PIN_BTN_TUMMY);
+  int back  = digitalRead(PIN_BTN_BACK);
+
+  if (rts   == HIGH) s |= INPUT_BIT_RTS;
+  if (feed  == HIGH) s |= INPUT_BIT_FEED;
+  if (tummy == HIGH) s |= INPUT_BIT_TUMMY;
+  if (back  == HIGH) s |= INPUT_BIT_BACK;
+
+  g_lastInputSnapshot.state        = s;
+  g_lastInputSnapshot.timestamp_ms = millis();
 }
 
 // =========================
@@ -200,34 +250,121 @@ bool waitForRTSReady(uint32_t timeout_us) {
   return waitForRTSReady(timeout_us, true);
 }
 
-void sendNibble(uint8_t nibble) {
+// Drive CTS + D1–D4 to explicit levels for continuity / wiring tests.
+// pattern bit mapping (LSB-first):
+//   bit0 -> D1
+//   bit1 -> D2
+//   bit2 -> D3
+//   bit3 -> D4
+//   bit4 -> CTS
+void driveDebugBus(uint8_t pattern) {
+  pattern &= 0x1F;  // keep only 5 bits
+
+  bool d1  = pattern & 0x01;
+  bool d2  = pattern & 0x02;
+  bool d3  = pattern & 0x04;
+  bool d4  = pattern & 0x08;
+  bool cts = pattern & 0x10;
+
+  digitalWrite(PIN_D1, d1 ? HIGH : LOW);
+  digitalWrite(PIN_D2, d2 ? HIGH : LOW);
+  digitalWrite(PIN_D3, d3 ? HIGH : LOW);
+  digitalWrite(PIN_D4, d4 ? HIGH : LOW);
+  digitalWrite(PIN_CTS, cts ? HIGH : LOW);
+}
+
+// New nibble sender: /CTS low, wait /RTS high->low, then /CTS high.
+bool sendNibble(uint8_t nibble) {
   nibble &= 0x0F;
+
+  // Put the nibble onto the 4 data lines.
   digitalWrite(PIN_D1, nibble & 0x01);
   digitalWrite(PIN_D2, nibble & 0x02);
   digitalWrite(PIN_D3, nibble & 0x04);
   digitalWrite(PIN_D4, nibble & 0x08);
 
-  delayMicroseconds(1);
+  delayMicroseconds(10);
+
+  // Start the handshake by pulling /CTS LOW.
+  // From your logic trace: /RTS activity happens while /CTS is LOW.
   digitalWrite(PIN_CTS, LOW);
-  delayMicroseconds(CTS_PULSE_US);
+
+  uint32_t start     = micros();
+  uint32_t highStart = 0;
+  bool     sawHigh   = false;
+
+  // Read the initial RTS level.
+  int level = digitalRead(PIN_RTS);
+
+  // -----------------------------------------------------------
+  // Stage 1: Wait for LOW -> HIGH (start of busy window)
+  // -----------------------------------------------------------
+
+  if (level == HIGH) {
+    // If RTS is already HIGH when we pull CTS low, treat this as
+    // the beginning of the busy interval.
+    sawHigh   = true;
+    highStart = micros();
+  } else {
+    // RTS is LOW: wait for it to go HIGH, but don't block forever.
+    while ((micros() - start) < RTS_TIMEOUT_US) {
+      level = digitalRead(PIN_RTS);
+      if (level == HIGH) {
+        sawHigh   = true;
+        highStart = micros();
+        break;
+      }
+    }
+  }
+
+  if (!sawHigh) {
+    // Never saw RTS go HIGH while CTS was LOW.
+    // Log a 0-duration pulse for this nibble so we see the failure.
+    recordRTSHighDuration(0);
+
+    // Release CTS so the bus isn't stuck.
+    digitalWrite(PIN_CTS, HIGH);
+    return false;
+  }
+
+  // -----------------------------------------------------------
+  // Stage 2: Wait for HIGH -> LOW (end of busy window)
+  // -----------------------------------------------------------
+
+  // Now that we have seen the command get latched, we can return /CTS high
+  delayMicroseconds(5);
   digitalWrite(PIN_CTS, HIGH);
+
+  while ((micros() - start) < RTS_TIMEOUT_US) {
+    level = digitalRead(PIN_RTS);
+    if (level == LOW) {
+      uint32_t duration = micros() - highStart;
+      recordRTSHighDuration(duration);
+      
+      return true;
+    }
+  }
+
+  // If we get here, RTS stayed HIGH for the entire timeout.
+  // Record whatever duration we observed and still release CTS.
+  {
+    uint32_t duration = micros() - highStart;
+    recordRTSHighDuration(duration);
+  }
+
+  digitalWrite(PIN_CTS, HIGH);
+  return false;
 }
 
 bool sendNibbleList(const uint8_t* list, size_t count) {
   if (count == 0) return true;
 
-  // Make sure bus is ready before we begin, but don't log this interval
-  if (!waitForRTSReady(RTS_TIMEOUT_US, false)) return false;
-
-  // Reset the history so it corresponds only to this stream
+  // This stream’s RTS history should only reflect these nibbles.
   clearRTSHistory();
 
   for (size_t i = 0; i < count; i++) {
-    // Send the nibble
-    sendNibble(list[i]);
-
-    // Now measure how long RTS stays HIGH until it goes LOW (busy time for this nibble)
-    if (!waitForRTSReady(RTS_TIMEOUT_US, true)) {
+    if (!sendNibble(list[i])) {
+      // If any nibble handshake fails (timeout, etc.), abort.
       return false;
     }
   }
@@ -426,6 +563,50 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       break;
     }
 
+    case CTRL_DEBUG_BUS_DRIVE: {
+      // Expect at least 1 byte (= 2 nibbles) of payload; we use the lower 5 bits.
+      if (pcount < 2) {
+        client.println("[ERROR] DEBUG_BUS requires 2 payload nibbles (00–1F)");
+        return;
+      }
+
+      // Reconstruct a byte from the first two payload nibbles.
+      uint8_t pattern = (payload[0] << 4) | payload[1];
+      pattern &= 0x1F;
+
+      driveDebugBus(pattern);
+
+      client.print("[DEBUG] CTS,D4,D3,D2,D1 = ");
+      client.print((pattern & 0x10) ? 1 : 0); client.print(",");
+      client.print((pattern & 0x08) ? 1 : 0); client.print(",");
+      client.print((pattern & 0x04) ? 1 : 0); client.print(",");
+      client.print((pattern & 0x02) ? 1 : 0); client.print(",");
+      client.print((pattern & 0x01) ? 1 : 0);
+      client.println();
+      client.println("[OK] Debug bus driven");
+      break;
+    }
+
+    case CTRL_POLL_INPUTS: {
+      // Sample RTS + the three buttons and store to the snapshot register.
+      sampleFurbyInputs();
+
+      uint8_t s = g_lastInputSnapshot.state;
+
+      client.print("[INPUT] t_ms=");
+      client.print(g_lastInputSnapshot.timestamp_ms);
+      client.print(" RTS=");
+      client.print((s & INPUT_BIT_RTS) ? 1 : 0);
+      client.print(" FEED=");
+      client.print((s & INPUT_BIT_FEED) ? 1 : 0);
+      client.print(" TUMMY=");
+      client.print((s & INPUT_BIT_TUMMY) ? 1 : 0);
+      client.print(" BACK=");
+      client.print((s & INPUT_BIT_BACK) ? 1 : 0);
+      client.println();
+      break;
+    }
+
     case CTRL_MOTOR_FORWARD:
     case CTRL_MOTOR_BACKWARD: {
       if (pcount < 16) { client.println("[ERROR] Need 16 nibbles for duration"); return; }
@@ -468,6 +649,10 @@ void handleClient(WiFiClient &client) {
 // SETUP / LOOP
 // =========================
 void setup() {
+  pinMode(PIN_BTN_FEED,  INPUT);
+  pinMode(PIN_BTN_TUMMY, INPUT);
+  pinMode(PIN_BTN_BACK,  INPUT);
+  
   pinMode(PIN_D1, OUTPUT);
   digitalWrite(PIN_D1, LOW);
   pinMode(PIN_D2, OUTPUT);
@@ -480,7 +665,7 @@ void setup() {
   pinMode(PIN_CTS, OUTPUT);
   digitalWrite(PIN_CTS, HIGH);
 
-  pinMode(PIN_RTS, INPUT_PULLUP);
+  pinMode(PIN_RTS, INPUT);
 
   pinMode(PIN_INIT, OUTPUT);
   digitalWrite(PIN_INIT, HIGH);
