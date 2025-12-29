@@ -181,7 +181,7 @@ bool waitForRTSReady(uint32_t timeout_us, bool logDuration) {
   bool     sawHigh   = false;
 
   // Read the initial level
-    int level = digitalRead(PIN_RTS);
+  int level = digitalRead(PIN_RTS);
 
   // -----------------------------------------------------------
   // Stage 1: Wait for LOW -> HIGH (start of busy window)
@@ -196,7 +196,7 @@ bool waitForRTSReady(uint32_t timeout_us, bool logDuration) {
     // RTS is LOW: wait for it to go HIGH, but don't block forever.
     while ((micros() - start) < timeout_us) {
       level = digitalRead(PIN_RTS);
-    if (level == HIGH) {
+      if (level == HIGH) {
         sawHigh   = true;
         highStart = micros();
         break;
@@ -340,7 +340,7 @@ bool sendNibble(uint8_t nibble) {
     if (level == LOW) {
       uint32_t duration = micros() - highStart;
       recordRTSHighDuration(duration);
-      
+
       return true;
     }
   }
@@ -547,7 +547,7 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       client.print("[RTS] ");
       client.print(rtsHistoryCount);
       client.print(" samples: ");
-
+    
       if (rtsHistoryCount == 0) {
         client.println("none");
       } else {
