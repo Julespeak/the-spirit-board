@@ -95,7 +95,7 @@ WiFiServer tcpServer(5000);
 // =========================
 // RTS HIGH-TIME HISTORY
 // =========================
-const size_t RTS_HISTORY_LEN = 300;
+const size_t RTS_HISTORY_LEN = 3000;
 uint32_t rtsHighDurations[RTS_HISTORY_LEN];
 size_t   rtsHistoryIndex = 0;   // Next write position
 size_t   rtsHistoryCount = 0;   // Number of valid samples (<= RTS_HISTORY_LEN)
@@ -638,8 +638,8 @@ void handleClient(WiFiClient &client) {
   line.trim();
   if (!line.length()) { client.println("[ERROR] Empty"); return; }
 
-  static uint8_t buf[1024];
-  size_t count = parseHexNibbles(line, buf, 1024);
+  static uint8_t buf[3000];
+  size_t count = parseHexNibbles(line, buf, 3000);
   if (count == 0) { client.println("[ERROR] No hex data"); return; }
 
   processCommand(buf, count, client);
