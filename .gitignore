@@ -5,3 +5,10 @@ fp-info-cache
 *.kicad_prl
 *.lck
 *.bak
+
+__pycache__/
+
+# Jupyter working notebooks
+notebooks/SpiritBoardWorking.ipynb
+notebooks/*Working.ipynb
+notebooks/legacy/
