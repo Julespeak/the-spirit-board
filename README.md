@@ -20,6 +20,12 @@ The version of KiCAD used in the design was 9.0. If you use something else, YMMV
 5) Insert the contents of the .kicad_sym file into the master .kicad_sym file
 6) Save everything and commit
 
+### Documentation
+
+- **[Furby Soundcard Protocol Specification](docs/soundcard_spec.md)** - Complete technical specification of the Furby sound coprocessor communication protocol
+- **[CLAUDE.md](CLAUDE.md)** - AI assistant context and project structure
+- **[firmware/invoker/README.md](firmware/invoker/README.md)** - Firmware module documentation
+
 ### Useful links and sources
 - [Technical information](https://official-furby.fandom.com/wiki/Furby_(1998)/Technical_information) on the original 1998 Furby from the offical fan wiki
 - Reversed-engineered 1998 Furby [schematic](https://cdn.preterhuman.net/texts/engineering/Furby,%20Reverse-Engineered.pdf)

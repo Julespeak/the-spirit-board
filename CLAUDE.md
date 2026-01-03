@@ -171,11 +171,13 @@ board.send_nibble_stream(get_furby_command("mee-mee"))
 Key files to read when working on this project:
 
 - `README.md` - Project purpose, KiCAD workflow, useful links
+- **`docs/soundcard_spec.md`** - Complete Furby soundcard protocol specification with timing diagrams and command examples
 - `firmware/invoker/README.md` - Firmware module overview and responsibilities
 - `firmware/invoker/invoker.ino` - Complete firmware implementation with protocol details
 - `software/spirit_board.py` - Python library for controlling the board
 - `.github/copilot-instructions.md` - Detailed architectural notes and integration points
 - `hardware/the-spirit-board.kicad_sch` - Complete hardware schematic
+- `notebooks/FurbyAdvancedScraping.ipynb` - Logic analyzer captures with RTS timing analysis
 
 External references (see `README.md` for URLs):
 - ESP32-C6 technical reference manual and datasheet
