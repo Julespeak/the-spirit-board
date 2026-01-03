@@ -166,6 +166,7 @@ board.send_nibble_stream(get_furby_command("mee-mee"))
 - `notebooks/SpiritBoardExample.ipynb` - Canonical examples of all library functions
 - `notebooks/SpiritBoardWorking.ipynb` - Working copy (git-ignored) for development
 
+<<<<<<< HEAD
 ## Data Analysis Environment
 
 The project uses `uv` (a fast Python package manager) to manage the Jupyter Lab environment for data analysis and notebook development.
@@ -213,18 +214,26 @@ Enable matplotlib widgets in notebooks with:
 
 This enables interactive plots and widgets using the `ipympl` backend, which resolves common widget compatibility issues in Jupyter Lab.
 
+=======
+>>>>>>> refs/remotes/origin/main
 ## Reference Documentation
 
 Key files to read when working on this project:
 
 - `README.md` - Project purpose, KiCAD workflow, useful links
+<<<<<<< HEAD
 - **`docs/soundcard_spec.md`** - Complete Furby soundcard protocol specification with timing diagrams and command examples
+=======
+>>>>>>> refs/remotes/origin/main
 - `firmware/invoker/README.md` - Firmware module overview and responsibilities
 - `firmware/invoker/invoker.ino` - Complete firmware implementation with protocol details
 - `software/spirit_board.py` - Python library for controlling the board
 - `.github/copilot-instructions.md` - Detailed architectural notes and integration points
 - `hardware/the-spirit-board.kicad_sch` - Complete hardware schematic
+<<<<<<< HEAD
 - `notebooks/FurbyAdvancedScraping.ipynb` - Logic analyzer captures with RTS timing analysis
+=======
+>>>>>>> refs/remotes/origin/main
 
 External references (see `README.md` for URLs):
 - ESP32-C6 technical reference manual and datasheet
