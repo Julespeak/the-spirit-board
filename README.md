@@ -12,6 +12,37 @@ The project was designed using KiCAD. It is fully portable. You should be able t
 
 The version of KiCAD used in the design was 9.0. If you use something else, YMMV.
 
+### Data Analysis Environment
+
+This project includes a Jupyter Lab environment for analyzing data from the Spirit Board (e.g., RTS timing data, signal analysis). The environment is managed using `uv`, a fast Python package manager.
+
+**Prerequisites:**
+- Python 3.10 or higher
+- `uv` package manager - Install with: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+**Setup:**
+1. Install dependencies and create virtual environment:
+   ```bash
+   uv sync
+   ```
+
+2. Launch Jupyter Lab:
+   ```bash
+   uv run jupyter lab
+   ```
+
+3. Open notebooks in the `notebooks/` directory
+
+**Adding Dependencies:**
+To add new packages for data analysis:
+```bash
+uv add pandas           # Data analysis
+uv add scikit-learn     # Machine learning
+uv add seaborn          # Statistical visualization
+```
+
+**Note:** Always commit both `pyproject.toml` and `uv.lock` to ensure reproducible environments across different machines.
+
 ### Adding new components to the library
 1) Download the part footprint/3D model archive from Mouser
 2) Copy the .kicad_mod file to the lib folder

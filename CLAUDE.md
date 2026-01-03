@@ -166,6 +166,53 @@ board.send_nibble_stream(get_furby_command("mee-mee"))
 - `notebooks/SpiritBoardExample.ipynb` - Canonical examples of all library functions
 - `notebooks/SpiritBoardWorking.ipynb` - Working copy (git-ignored) for development
 
+## Data Analysis Environment
+
+The project uses `uv` (a fast Python package manager) to manage the Jupyter Lab environment for data analysis and notebook development.
+
+### Setup and Usage
+
+**Initial setup:**
+```bash
+uv sync  # Install dependencies and create virtual environment
+```
+
+**Launch Jupyter Lab:**
+```bash
+uv run jupyter lab
+```
+
+### Dependencies
+
+The environment is defined in `pyproject.toml` and includes:
+- **jupyterlab** (≥4.5.1) - Interactive notebook environment
+- **ipympl** (≥0.9.8) - Interactive matplotlib widgets (fixes widget compatibility issues)
+- **numpy** (≥2.2.6) - Numerical computing
+- **matplotlib** (≥3.10.8) - Plotting and visualization
+- **pandas** (≥2.2.0) - Data analysis and manipulation
+
+### Adding New Dependencies
+
+To add packages for data analysis:
+```bash
+uv add <package-name>  # e.g., uv add scikit-learn
+```
+
+**Important:** Always commit both `pyproject.toml` AND `uv.lock` after adding dependencies to ensure reproducible environments across different machines.
+
+### Python Version
+
+The project requires Python ≥3.10. The `.python-version` file pins the environment to Python 3.10 for consistency.
+
+### Using Interactive Widgets
+
+Enable matplotlib widgets in notebooks with:
+```python
+%matplotlib widget
+```
+
+This enables interactive plots and widgets using the `ipympl` backend, which resolves common widget compatibility issues in Jupyter Lab.
+
 ## Reference Documentation
 
 Key files to read when working on this project:

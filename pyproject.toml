@@ -1,0 +1,13 @@
+[project]
+name = "the-spirit-board"
+version = "0.1.0"
+description = "ESP32-C6 based controller for 1998 Furby with Jupyter Lab environment for data analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ipympl>=0.9.8",
+    "jupyterlab>=4.5.1",
+    "matplotlib>=3.10.8",
+    "numpy>=2.2.6",
+    "pandas>=2.2.0",
+]
