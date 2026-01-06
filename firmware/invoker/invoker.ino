@@ -17,7 +17,7 @@
 //     0x02 = Send nibble stream (Furby bus)
 //     0x03 = Drive motor forward  (64-bit duration in microseconds)
 //     0x04 = Drive motor backward (64-bit duration in microseconds)
-//     0x05 = Read last /RTS high-time samples
+//     0x05 = Read event timeline (RTS/CTS edges, data nibbles, motor events)
 //     0x06 = Debug: directly drive CTS + D1–D4 from a 5-bit pattern
 //     0x07 = Poll /RTS + feed/tummy/back buttons and store snapshot
 //     0xFF = Ping (responds "31337")
@@ -536,22 +536,36 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       break;
 
     case CTRL_INIT_COPROCESSOR: {
-      // Perform the /INIT pulse and capture the resulting /RTS HIGH pulses.
+      // Perform the /INIT pulse and capture the resulting timeline events.
       size_t count = doInitCoprocessor();
 
-      client.print("[RTS_INIT] ");
+      client.print("[TIMELINE] ");
       client.print(count);
-      client.print(" samples: ");
+      client.print(" events: ");
 
       if (count == 0) {
         client.println("none");
       } else {
-        // Oldest sample first, same ordering as CTRL_READ_RTS_HISTORY.
+        // Output format: type,ts_hi,ts_lo[,data];...
+        // Oldest event first.
         for (size_t i = 0; i < count; i++) {
-          size_t idx = (rtsHistoryIndex + RTS_HISTORY_LEN - count + i) % RTS_HISTORY_LEN;
-          uint32_t val = rtsHighDurations[idx];
-          client.print(val);
-          if (i + 1 < count) client.print(",");
+          size_t idx = (timelineIndex + TIMELINE_LEN - count + i) % TIMELINE_LEN;
+          TimelineEvent &evt = timeline[idx];
+
+          // Format: type,timestamp_hi,timestamp_lo
+          client.print(evt.event_type, HEX);
+          client.print(",");
+          client.print((uint32_t)(evt.timestamp_us >> 32), HEX);
+          client.print(",");
+          client.print((uint32_t)(evt.timestamp_us & 0xFFFFFFFF), HEX);
+
+          // For data nibble events, append the nibble value
+          if (evt.event_type == static_cast<uint8_t>(EVT_DATA_NIBBLE)) {
+            client.print(",");
+            client.print(evt.data, HEX);
+          }
+
+          if (i + 1 < count) client.print(";");
         }
         client.println();
       }
@@ -587,20 +601,34 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
     }
 
     case CTRL_READ_RTS_HISTORY: {
-      // Dump the last recorded RTS high-time samples in microseconds.
-      client.print("[RTS] ");
-      client.print(rtsHistoryCount);
-      client.print(" samples: ");
-    
-      if (rtsHistoryCount == 0) {
+      // Return full event timeline (replaces old RTS-only timing data).
+      client.print("[TIMELINE] ");
+      client.print(timelineCount);
+      client.print(" events: ");
+
+      if (timelineCount == 0) {
         client.println("none");
       } else {
-        // Oldest sample first.
-        for (size_t i = 0; i < rtsHistoryCount; i++) {
-          size_t idx = (rtsHistoryIndex + RTS_HISTORY_LEN - rtsHistoryCount + i) % RTS_HISTORY_LEN;
-          uint32_t val = rtsHighDurations[idx];
-          client.print(val);
-          if (i + 1 < rtsHistoryCount) client.print(",");
+        // Output format: type,ts_hi,ts_lo[,data];...
+        // Oldest event first.
+        for (size_t i = 0; i < timelineCount; i++) {
+          size_t idx = (timelineIndex + TIMELINE_LEN - timelineCount + i) % TIMELINE_LEN;
+          TimelineEvent &evt = timeline[idx];
+
+          // Format: type,timestamp_hi,timestamp_lo
+          client.print(evt.event_type, HEX);
+          client.print(",");
+          client.print((uint32_t)(evt.timestamp_us >> 32), HEX);
+          client.print(",");
+          client.print((uint32_t)(evt.timestamp_us & 0xFFFFFFFF), HEX);
+
+          // For data nibble events, append the nibble value
+          if (evt.event_type == static_cast<uint8_t>(EVT_DATA_NIBBLE)) {
+            client.print(",");
+            client.print(evt.data, HEX);
+          }
+
+          if (i + 1 < timelineCount) client.print(";");
         }
         client.println();
       }
