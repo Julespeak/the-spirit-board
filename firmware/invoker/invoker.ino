@@ -33,6 +33,7 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <esp_timer.h>
 
 // =========================
 // WIFI CONFIG
@@ -69,10 +70,31 @@ enum ControlMode : uint8_t {
   CTRL_SEND_NIBBLE_STREAM  = 0x02,
   CTRL_MOTOR_FORWARD       = 0x03,
   CTRL_MOTOR_BACKWARD      = 0x04,
-  CTRL_READ_RTS_HISTORY    = 0x05,  // read last RTS high-time samples
+  CTRL_READ_RTS_HISTORY    = 0x05,  // read event timeline (replaces old RTS timing)
   CTRL_DEBUG_BUS_DRIVE     = 0x06,  // directly drive CTS + D1–D4
   CTRL_POLL_INPUTS         = 0x07,  // sample RTS + buttons into snapshot register
   CTRL_PING                = 0xFF   // responds "31337"
+};
+
+// =========================
+// EVENT TIMELINE TYPES
+// =========================
+enum EventType : uint8_t {
+  EVT_RTS_RISING    = 0x01,  // RTS: LOW -> HIGH
+  EVT_RTS_FALLING   = 0x02,  // RTS: HIGH -> LOW
+  EVT_CTS_RISING    = 0x03,  // CTS: LOW -> HIGH
+  EVT_CTS_FALLING   = 0x04,  // CTS: HIGH -> LOW
+  EVT_DATA_NIBBLE   = 0x05,  // D1-D4 changed (nibble value in data field)
+  EVT_MOTOR_FWD_ON  = 0x06,  // Motor forward started
+  EVT_MOTOR_FWD_OFF = 0x07,  // Motor forward stopped
+  EVT_MOTOR_BWD_ON  = 0x08,  // Motor backward started
+  EVT_MOTOR_BWD_OFF = 0x09   // Motor backward stopped
+};
+
+struct TimelineEvent {
+  uint8_t  event_type;     // EventType enum value
+  uint8_t  data;           // Event-specific data (nibble value for EVT_DATA_NIBBLE)
+  uint64_t timestamp_us;   // Microseconds from esp_timer_get_time()
 };
 
 // =========================
@@ -93,25 +115,35 @@ const uint64_t MAX_MOTOR_US   = 4000000000ULL;
 WiFiServer tcpServer(5000);
 
 // =========================
-// RTS HIGH-TIME HISTORY
+// EVENT TIMELINE BUFFER
 // =========================
-const size_t RTS_HISTORY_LEN = 3000;
-uint32_t rtsHighDurations[RTS_HISTORY_LEN];
-size_t   rtsHistoryIndex = 0;   // Next write position
-size_t   rtsHistoryCount = 0;   // Number of valid samples (<= RTS_HISTORY_LEN)
+const size_t TIMELINE_LEN = 5000;
+TimelineEvent timeline[TIMELINE_LEN];
+size_t timelineIndex = 0;  // Next write position
+size_t timelineCount = 0;  // Number of valid events (<= TIMELINE_LEN)
 
-void clearRTSHistory() {
-  rtsHistoryIndex = 0;
-  rtsHistoryCount = 0;
+void clearTimeline() {
+  timelineIndex = 0;
+  timelineCount = 0;
 }
 
-void recordRTSHighDuration(uint32_t duration_us) {
-  rtsHighDurations[rtsHistoryIndex] = duration_us;
-  rtsHistoryIndex = (rtsHistoryIndex + 1) % RTS_HISTORY_LEN;
-  if (rtsHistoryCount < RTS_HISTORY_LEN) {
-    rtsHistoryCount++;
+void recordEvent(EventType type, uint8_t data = 0) {
+  timeline[timelineIndex].event_type = static_cast<uint8_t>(type);
+  timeline[timelineIndex].data = data;
+  timeline[timelineIndex].timestamp_us = esp_timer_get_time();
+
+  timelineIndex = (timelineIndex + 1) % TIMELINE_LEN;
+  if (timelineCount < TIMELINE_LEN) {
+    timelineCount++;
   }
 }
+
+// Convenience wrappers for common events
+inline void recordRTSRising() { recordEvent(EVT_RTS_RISING); }
+inline void recordRTSFalling() { recordEvent(EVT_RTS_FALLING); }
+inline void recordCTSRising() { recordEvent(EVT_CTS_RISING); }
+inline void recordCTSFalling() { recordEvent(EVT_CTS_FALLING); }
+inline void recordDataNibble(uint8_t nibble) { recordEvent(EVT_DATA_NIBBLE, nibble & 0x0F); }
 
 // =========================
 // INPUT SNAPSHOT REGISTER
