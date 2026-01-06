@@ -514,14 +514,23 @@ When creating custom commands or modifying existing ones:
 
 The Spirit Board firmware provides debugging tools:
 
-**Control Byte 0x05: Read RTS History**
+**Control Byte 0x05: Read Event Timeline**
 ```bash
 echo "05" | nc 192.168.1.100 5000
 ```
-Returns last 3000 RTS high-time samples in microseconds. Use this to:
-- Verify nibble count matches expected command length
-- Detect missing or corrupted nibbles (0μs entries)
-- Analyze timing patterns for specific commands
+Returns complete event timeline with up to 5000 events. Each event includes:
+- Event type (RTS/CTS edges, data nibbles, motor events)
+- 64-bit microsecond timestamp
+- Optional data field (nibble value for DATA events)
+
+Response format: `[TIMELINE] N events: type,ts_hi,ts_lo[,data];...`
+
+Use this to:
+- Reconstruct exact signal timing and state machine transitions
+- Verify handshake protocol compliance
+- Analyze nibble transmission timing patterns
+- Debug motor control timing
+- Correlate multiple signal changes
 
 **Control Byte 0x06: Debug Bus Drive**
 ```bash
@@ -543,7 +552,52 @@ echo "07" | nc 192.168.1.100 5000
 ```
 Samples /RTS and button states for diagnostics.
 
-### 8.4 Logic Analyzer Verification
+### 8.4 Timeline Analysis Workflow
+
+**Python Analysis Example**:
+```python
+from spirit_board import SpiritBoard, parse_timeline, plot_timeline, render_timeline, get_furby_command
+import matplotlib.pyplot as plt
+
+board = SpiritBoard("192.168.1.100")
+
+# Send command and capture timeline
+board.init_coprocessor()
+board.send_nibble_stream(get_furby_command("init"))
+board.send_nibble_stream(get_furby_command("mee-mee"))
+
+# Parse and analyze
+events = parse_timeline(board.get_rts_timing())
+
+# Display text summary
+print(render_timeline(events, max_events=50))
+
+# Calculate RTS pulse durations from timeline events
+rts_pulses = []
+rise_time = None
+for evt in events:
+    if evt.event_name == "RTS_RISE":
+        rise_time = evt.timestamp_us
+    elif evt.event_name == "RTS_FALL" and rise_time is not None:
+        duration_us = evt.timestamp_us - rise_time
+        rts_pulses.append(duration_us)
+        rise_time = None
+
+print(f"RTS pulses: min={min(rts_pulses)/1000:.1f}ms, max={max(rts_pulses)/1000:.1f}ms")
+
+# Visualize
+plot_timeline(events, title="Mee-Mee Command Analysis")
+plt.show()
+```
+
+**Timeline Benefits**:
+- Preserves complete state machine history (not just RTS durations)
+- Enables correlation between CTS, RTS, and data signals
+- 64-bit timestamps eliminate wraparound issues
+- Motor events synchronized with bus activity
+- Single unified debugging interface
+
+### 8.5 Logic Analyzer Verification
 
 For deep protocol debugging, use a logic analyzer to capture:
 
@@ -565,7 +619,7 @@ For deep protocol debugging, use a logic analyzer to capture:
 4. Consistent ~38μs minimum RTS pulses for all nibbles
 5. No glitches or runt pulses on any signal
 
-### 8.5 Common Error Codes
+### 8.6 Common Error Codes
 
 **Firmware Response Messages**:
 
@@ -574,7 +628,7 @@ For deep protocol debugging, use a logic analyzer to capture:
 | `[ERROR] RTS timeout` | Coprocessor didn't respond in 500ms | Re-initialize, check wiring |
 | `[ERROR] No payload` | Command sent without nibble data | Include nibbles after control byte 0x02 |
 | `[NIBBLES] count=0` | No valid hex data parsed | Check hex string format |
-| `[RTS] 0 samples` | No RTS pulses recorded | Verify coprocessor is powered and initialized |
+| `[TIMELINE] 0 events` | No events recorded | Verify coprocessor is powered and initialized |
 
 ---
 
