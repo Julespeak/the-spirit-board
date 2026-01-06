@@ -283,18 +283,22 @@ bool sendNibble(uint8_t nibble) {
   digitalWrite(PIN_D3, nibble & 0x04);
   digitalWrite(PIN_D4, nibble & 0x08);
 
-  delayMicroseconds(10);
+  // Allow data lines to settle before presenting CTS falling edge.
+  // Increased from 10μs to 50μs to improve signal integrity and
+  // reduce intermittent transmission errors.
+  delayMicroseconds(3);
 
   // Start the handshake by pulling /CTS LOW.
   // From your logic trace: /RTS activity happens while /CTS is LOW.
   digitalWrite(PIN_CTS, LOW);
 
+  // Read RTS immediately after CTS LOW to avoid race condition
+  // if Furby responds very quickly.
+  int level = digitalRead(PIN_RTS);
+
   uint32_t start     = micros();
   uint32_t highStart = 0;
   bool     sawHigh   = false;
-
-  // Read the initial RTS level.
-  int level = digitalRead(PIN_RTS);
 
   // -----------------------------------------------------------
   // Stage 1: Wait for LOW -> HIGH (start of busy window)
@@ -334,6 +338,7 @@ bool sendNibble(uint8_t nibble) {
   // Now that we have seen the command get latched, we can return /CTS high
   delayMicroseconds(5);
   digitalWrite(PIN_CTS, HIGH);
+  delayMicroseconds(5);  // Allow CTS to settle after rising edge
 
   while ((micros() - start) < RTS_TIMEOUT_US) {
     level = digitalRead(PIN_RTS);
