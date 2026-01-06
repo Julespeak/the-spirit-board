@@ -315,6 +315,9 @@ bool sendNibble(uint8_t nibble) {
   digitalWrite(PIN_D3, nibble & 0x04);
   digitalWrite(PIN_D4, nibble & 0x08);
 
+  // Record the nibble value being transmitted
+  recordDataNibble(nibble);
+
   // Allow data lines to settle before presenting CTS falling edge.
   // Increased from 10μs to 50μs to improve signal integrity and
   // reduce intermittent transmission errors.
@@ -323,6 +326,7 @@ bool sendNibble(uint8_t nibble) {
   // Start the handshake by pulling /CTS LOW.
   // From your logic trace: /RTS activity happens while /CTS is LOW.
   digitalWrite(PIN_CTS, LOW);
+  recordCTSFalling();
 
   // Read RTS immediately after CTS LOW to avoid race condition
   // if Furby responds very quickly.
@@ -339,6 +343,7 @@ bool sendNibble(uint8_t nibble) {
   if (level == HIGH) {
     // If RTS is already HIGH when we pull CTS low, treat this as
     // the beginning of the busy interval.
+    recordRTSRising();
     sawHigh   = true;
     highStart = micros();
   } else {
@@ -346,6 +351,7 @@ bool sendNibble(uint8_t nibble) {
     while ((micros() - start) < RTS_TIMEOUT_US) {
       level = digitalRead(PIN_RTS);
       if (level == HIGH) {
+        recordRTSRising();
         sawHigh   = true;
         highStart = micros();
         break;
@@ -355,11 +361,9 @@ bool sendNibble(uint8_t nibble) {
 
   if (!sawHigh) {
     // Never saw RTS go HIGH while CTS was LOW.
-    // Log a 0-duration pulse for this nibble so we see the failure.
-    recordRTSHighDuration(0);
-
     // Release CTS so the bus isn't stuck.
     digitalWrite(PIN_CTS, HIGH);
+    recordCTSRising();
     return false;
   }
 
@@ -370,34 +374,31 @@ bool sendNibble(uint8_t nibble) {
   // Now that we have seen the command get latched, we can return /CTS high
   delayMicroseconds(5);
   digitalWrite(PIN_CTS, HIGH);
+  recordCTSRising();
   delayMicroseconds(5);  // Allow CTS to settle after rising edge
 
   while ((micros() - start) < RTS_TIMEOUT_US) {
     level = digitalRead(PIN_RTS);
     if (level == LOW) {
-      uint32_t duration = micros() - highStart;
-      recordRTSHighDuration(duration);
-
+      recordRTSFalling();
       return true;
     }
   }
 
   // If we get here, RTS stayed HIGH for the entire timeout.
-  // Record whatever duration we observed and still release CTS.
-  {
-    uint32_t duration = micros() - highStart;
-    recordRTSHighDuration(duration);
-  }
+  // Record the falling edge even on timeout (for diagnostic purposes)
+  recordRTSFalling();
 
   digitalWrite(PIN_CTS, HIGH);
+  recordCTSRising();
   return false;
 }
 
 bool sendNibbleList(const uint8_t* list, size_t count) {
   if (count == 0) return true;
 
-  // This stream’s RTS history should only reflect these nibbles.
-  clearRTSHistory();
+  // Clear timeline before sending new stream.
+  clearTimeline();
 
   for (size_t i = 0; i < count; i++) {
     if (!sendNibble(list[i])) {
@@ -432,16 +433,13 @@ size_t parseHexNibbles(const String &s, uint8_t *out, size_t max) {
 // =========================
 
 size_t doInitCoprocessor() {
-//  // Clear any previous RTS history so this capture is only the init pulse train.
-//  clearRTSHistory();
-
   // Pulse /INIT LOW then back HIGH to kick the coprocessor.
   digitalWrite(PIN_INIT, LOW);
   delay(INIT_PULSE_MS);
   digitalWrite(PIN_INIT, HIGH);
 
-  // Clear any previous RTS history so this capture is only the init pulse train.
-  clearRTSHistory();
+  // Clear any previous timeline so this capture is only the init pulse train.
+  clearTimeline();
 
   // Now watch /RTS for a sequence of HIGH pulses. For each pulse, we measure how
   // long /RTS stays HIGH. We stop when /RTS has remained LOW for more than
@@ -460,6 +458,7 @@ size_t doInitCoprocessor() {
     lowStartUs = micros();
   } else {
     // If we start HIGH, treat as already in a pulse.
+    recordRTSRising();
     inHigh      = true;
     highStartUs = micros();
   }
@@ -471,6 +470,7 @@ size_t doInitCoprocessor() {
     if (!inHigh) {
       // Currently LOW. Look for LOW -> HIGH to start a new pulse.
       if (level == HIGH) {
+        recordRTSRising();
         inHigh      = true;
         highStartUs = now;
       } else {
@@ -482,8 +482,7 @@ size_t doInitCoprocessor() {
     } else {
       // Currently in a HIGH pulse. Look for HIGH -> LOW to finish the pulse.
       if (level == LOW) {
-        uint32_t duration = now - highStartUs;
-        recordRTSHighDuration(duration);
+        recordRTSFalling();
         inHigh     = false;
         lowStartUs = now;
       }
@@ -494,23 +493,31 @@ size_t doInitCoprocessor() {
     delayMicroseconds(1);
   }
 
-  return rtsHistoryCount;
+  return timelineCount;
 }
 
 void driveMotorForward(uint64_t us) {
   if (us > MAX_MOTOR_US) us = MAX_MOTOR_US;
   digitalWrite(PIN_MOTOR_BWD, LOW);
   digitalWrite(PIN_MOTOR_FWD, HIGH);
+  recordEvent(EVT_MOTOR_FWD_ON);
+
   delayMicroseconds((uint32_t)us);
+
   digitalWrite(PIN_MOTOR_FWD, LOW);
+  recordEvent(EVT_MOTOR_FWD_OFF);
 }
 
 void driveMotorBackward(uint64_t us) {
   if (us > MAX_MOTOR_US) us = MAX_MOTOR_US;
   digitalWrite(PIN_MOTOR_FWD, LOW);
   digitalWrite(PIN_MOTOR_BWD, HIGH);
+  recordEvent(EVT_MOTOR_BWD_ON);
+
   delayMicroseconds((uint32_t)us);
+
   digitalWrite(PIN_MOTOR_BWD, LOW);
+  recordEvent(EVT_MOTOR_BWD_OFF);
 }
 
 // =========================
