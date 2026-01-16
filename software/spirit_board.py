@@ -10,7 +10,57 @@ Author: Renegade Science
 
 import socket
 import re
-from typing import Tuple, List, Optional
+from dataclasses import dataclass
+from typing import Tuple, List, Optional, Dict
+
+
+# =========================
+# EVENT TIMELINE TYPES
+# =========================
+
+@dataclass
+class TimelineEvent:
+    """
+    Represents a single event in the Spirit Board timeline.
+
+    Attributes:
+        event_type: Event type code (1-9)
+        event_name: Human-readable event name
+        timestamp_us: Absolute timestamp in microseconds since firmware boot
+        data: Event-specific data (nibble value for DATA_NIBBLE events)
+    """
+    event_type: int
+    event_name: str
+    timestamp_us: int
+    data: Optional[int] = None
+
+    def relative_time_ms(self, t0_us: int) -> float:
+        """Get time relative to reference timestamp in milliseconds."""
+        return (self.timestamp_us - t0_us) / 1000.0
+
+
+# Event type constants matching firmware
+EVENT_RTS_RISING = 0x01
+EVENT_RTS_FALLING = 0x02
+EVENT_CTS_RISING = 0x03
+EVENT_CTS_FALLING = 0x04
+EVENT_DATA_NIBBLE = 0x05
+EVENT_MOTOR_FWD_ON = 0x06
+EVENT_MOTOR_FWD_OFF = 0x07
+EVENT_MOTOR_BWD_ON = 0x08
+EVENT_MOTOR_BWD_OFF = 0x09
+
+EVENT_NAMES = {
+    EVENT_RTS_RISING: "RTS_RISE",
+    EVENT_RTS_FALLING: "RTS_FALL",
+    EVENT_CTS_RISING: "CTS_RISE",
+    EVENT_CTS_FALLING: "CTS_FALL",
+    EVENT_DATA_NIBBLE: "DATA",
+    EVENT_MOTOR_FWD_ON: "MOTOR_FWD+",
+    EVENT_MOTOR_FWD_OFF: "MOTOR_FWD-",
+    EVENT_MOTOR_BWD_ON: "MOTOR_BWD+",
+    EVENT_MOTOR_BWD_OFF: "MOTOR_BWD-",
+}
 
 
 class SpiritBoard:
@@ -181,13 +231,20 @@ class SpiritBoard:
 
     def get_rts_timing(self) -> str:
         """
-        Read the RTS timing register from the firmware.
+        Read the event timeline from the firmware.
 
-        This returns detailed timing information about the /RTS signal during
-        the last nibble stream transmission. Useful for debugging and analysis.
+        This returns detailed timing information about all bus events during
+        the last operation (nibble stream, initialization, etc.). Includes
+        RTS/CTS edges, data nibbles, and motor events with microsecond timestamps.
+
+        Use parse_timeline() to convert the response into structured data.
 
         Returns:
-            RTS timing data as a string
+            Timeline data as a string (use parse_timeline() to parse)
+
+        Example:
+            >>> events = parse_timeline(board.get_rts_timing())
+            >>> print(render_timeline(events, max_events=20))
         """
         # Control byte 0x05, no payload
         return self.send_hex_command("05")
@@ -242,6 +299,306 @@ def parse_nibble_echo(response: str) -> Tuple[int, List[int]]:
             nibs.append(int(part, 16))
 
     return count, nibs
+
+
+def parse_timeline(response: str) -> List[TimelineEvent]:
+    """
+    Parse firmware timeline response into structured event list.
+
+    The firmware responds with a line like:
+        [TIMELINE] 12 events: 5,0,1A2B3C4D,7;1,0,1A2B3C55;...
+
+    Format for each event:
+        - Type,TimestampHi,TimestampLo[,Data]
+        - Events separated by semicolons
+        - DATA_NIBBLE events include nibble value as 4th field
+
+    Args:
+        response: Firmware response string
+
+    Returns:
+        List of TimelineEvent objects in chronological order
+
+    Raises:
+        ValueError: If response doesn't contain valid [TIMELINE] data
+
+    Example:
+        >>> events = parse_timeline(board.get_rts_timing())
+        >>> print(f"Captured {len(events)} events")
+        >>> print(f"First event: {events[0].event_name} at {events[0].timestamp_us}us")
+    """
+    lines = response.splitlines()
+    timeline_line = None
+    for line in lines:
+        if line.startswith("[TIMELINE]"):
+            timeline_line = line
+            break
+
+    if timeline_line is None:
+        raise ValueError(f"No [TIMELINE] line found in response: {response!r}")
+
+    # Parse: [TIMELINE] N events: data...
+    m = re.search(r'\[TIMELINE\]\s+(\d+)\s+events:\s*(.*)', timeline_line)
+    if not m:
+        raise ValueError(f"Could not parse [TIMELINE] line: {timeline_line!r}")
+
+    count = int(m.group(1))
+    data = m.group(2).strip()
+
+    if count == 0 or data == "none":
+        return []
+
+    events = []
+    event_strs = data.split(';')
+
+    for evt_str in event_strs:
+        evt_str = evt_str.strip()
+        if not evt_str:
+            continue
+
+        parts = evt_str.split(',')
+        if len(parts) < 3:
+            raise ValueError(f"Invalid event format: {evt_str!r}")
+
+        # Parse event type
+        event_type = int(parts[0], 16)
+
+        # Parse 64-bit timestamp from two 32-bit hex values
+        timestamp_hi = int(parts[1], 16)
+        timestamp_lo = int(parts[2], 16)
+        timestamp_us = (timestamp_hi << 32) | timestamp_lo
+
+        # Parse optional data field (for DATA_NIBBLE events)
+        data_val = None
+        if len(parts) >= 4:
+            data_val = int(parts[3], 16)
+
+        event_name = EVENT_NAMES.get(event_type, f"UNKNOWN_{event_type:02X}")
+
+        events.append(TimelineEvent(
+            event_type=event_type,
+            event_name=event_name,
+            timestamp_us=timestamp_us,
+            data=data_val
+        ))
+
+    return events
+
+
+def render_timeline(events: List[TimelineEvent],
+                    show_absolute: bool = False,
+                    max_events: Optional[int] = None) -> str:
+    """
+    Render timeline events as human-readable text table.
+
+    Args:
+        events: List of TimelineEvent objects
+        show_absolute: If True, show absolute timestamps; if False, show relative to first event
+        max_events: Maximum number of events to display (None = all)
+
+    Returns:
+        Formatted string representation of timeline
+
+    Example:
+        >>> events = parse_timeline(board.get_rts_timing())
+        >>> print(render_timeline(events, max_events=20))
+    """
+    if not events:
+        return "No events in timeline"
+
+    t0 = events[0].timestamp_us if not show_absolute else 0
+
+    lines = []
+    lines.append(f"Timeline: {len(events)} events")
+    lines.append("-" * 80)
+
+    if show_absolute:
+        lines.append(f"{'Index':<6} {'Time (us)':<20} {'Δt (ms)':<12} {'Event':<15} {'Data'}")
+    else:
+        lines.append(f"{'Index':<6} {'Δt (ms)':<12} {'Event':<15} {'Data'}")
+    lines.append("-" * 80)
+
+    display_events = events[:max_events] if max_events else events
+    prev_time = t0
+
+    for idx, evt in enumerate(display_events):
+        rel_time_ms = (evt.timestamp_us - t0) / 1000.0
+        delta_ms = (evt.timestamp_us - prev_time) / 1000.0
+
+        data_str = ""
+        if evt.event_type == EVENT_DATA_NIBBLE and evt.data is not None:
+            data_str = f"0x{evt.data:X}"
+
+        if show_absolute:
+            lines.append(f"{idx:<6} {evt.timestamp_us:<20} {delta_ms:<12.3f} {evt.event_name:<15} {data_str}")
+        else:
+            lines.append(f"{idx:<6} {rel_time_ms:<12.3f} {evt.event_name:<15} {data_str}")
+
+        prev_time = evt.timestamp_us
+
+    if max_events and len(events) > max_events:
+        lines.append(f"... ({len(events) - max_events} more events)")
+
+    return "\n".join(lines)
+
+
+def plot_timeline(events: List[TimelineEvent],
+                  title: str = "Spirit Board Event Timeline",
+                  figsize: Tuple[int, int] = (14, 8),
+                  show_nibbles: bool = True):
+    """
+    Create matplotlib visualization of timeline events.
+
+    Generates a multi-track timeline showing:
+    - RTS signal state over time
+    - CTS signal state over time
+    - Data nibble values
+    - Motor events
+
+    Args:
+        events: List of TimelineEvent objects
+        title: Plot title
+        figsize: Figure size (width, height) in inches
+        show_nibbles: If True, display nibble values on data track
+
+    Returns:
+        tuple: (figure, axes) matplotlib objects
+
+    Example:
+        >>> import matplotlib.pyplot as plt
+        >>> events = parse_timeline(board.get_rts_timing())
+        >>> fig, axes = plot_timeline(events)
+        >>> plt.show()
+    """
+    try:
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+    except ImportError:
+        raise ImportError("matplotlib required for timeline visualization. Install with: pip install matplotlib")
+
+    if not events:
+        raise ValueError("No events to plot")
+
+    # Convert to relative time in milliseconds
+    t0 = events[0].timestamp_us
+    times_ms = [(e.timestamp_us - t0) / 1000.0 for e in events]
+
+    # Create figure with 4 tracks: RTS, CTS, DATA, MOTOR
+    fig, axes = plt.subplots(4, 1, figsize=figsize, sharex=True)
+    fig.suptitle(title, fontsize=14, fontweight='bold')
+
+    # Track 1: RTS signal
+    ax_rts = axes[0]
+    rts_state = 0  # Start LOW
+    rts_times = [0]
+    rts_values = [0]
+
+    for i, evt in enumerate(events):
+        if evt.event_type == EVENT_RTS_RISING:
+            rts_state = 1
+            rts_times.extend([times_ms[i], times_ms[i]])
+            rts_values.extend([0, 1])
+        elif evt.event_type == EVENT_RTS_FALLING:
+            rts_state = 0
+            rts_times.extend([times_ms[i], times_ms[i]])
+            rts_values.extend([1, 0])
+
+    # Extend to end
+    rts_times.append(times_ms[-1] if times_ms else 0)
+    rts_values.append(rts_state)
+
+    ax_rts.plot(rts_times, rts_values, 'b-', linewidth=2, label='RTS')
+    ax_rts.fill_between(rts_times, 0, rts_values, alpha=0.3, color='blue')
+    ax_rts.set_ylabel('RTS', fontweight='bold')
+    ax_rts.set_ylim(-0.1, 1.1)
+    ax_rts.grid(True, alpha=0.3)
+    ax_rts.set_yticks([0, 1])
+    ax_rts.set_yticklabels(['LOW', 'HIGH'])
+
+    # Track 2: CTS signal
+    ax_cts = axes[1]
+    cts_state = 1  # Start HIGH (idle)
+    cts_times = [0]
+    cts_values = [1]
+
+    for i, evt in enumerate(events):
+        if evt.event_type == EVENT_CTS_RISING:
+            cts_state = 1
+            cts_times.extend([times_ms[i], times_ms[i]])
+            cts_values.extend([0, 1])
+        elif evt.event_type == EVENT_CTS_FALLING:
+            cts_state = 0
+            cts_times.extend([times_ms[i], times_ms[i]])
+            cts_values.extend([1, 0])
+
+    cts_times.append(times_ms[-1] if times_ms else 0)
+    cts_values.append(cts_state)
+
+    ax_cts.plot(cts_times, cts_values, 'g-', linewidth=2, label='CTS')
+    ax_cts.fill_between(cts_times, 0, cts_values, alpha=0.3, color='green')
+    ax_cts.set_ylabel('CTS', fontweight='bold')
+    ax_cts.set_ylim(-0.1, 1.1)
+    ax_cts.grid(True, alpha=0.3)
+    ax_cts.set_yticks([0, 1])
+    ax_cts.set_yticklabels(['LOW', 'HIGH'])
+
+    # Track 3: Data nibbles
+    ax_data = axes[2]
+    data_events = [e for e in events if e.event_type == EVENT_DATA_NIBBLE]
+
+    if data_events:
+        data_times = [(e.timestamp_us - t0) / 1000.0 for e in data_events]
+        data_values = [e.data if e.data is not None else 0 for e in data_events]
+
+        ax_data.scatter(data_times, data_values, c='red', s=50, marker='o', alpha=0.7)
+        ax_data.step(data_times, data_values, 'r-', where='post', alpha=0.5)
+
+        if show_nibbles:
+            for t, v in zip(data_times, data_values):
+                ax_data.text(t, v + 0.3, f"{v:X}", fontsize=8, ha='center', va='bottom')
+
+    ax_data.set_ylabel('Data\nNibbles', fontweight='bold')
+    ax_data.set_ylim(-0.5, 15.5)
+    ax_data.grid(True, alpha=0.3)
+    ax_data.set_yticks(range(0, 16, 2))
+
+    # Track 4: Motor events
+    ax_motor = axes[3]
+    motor_fwd_intervals = []
+    motor_bwd_intervals = []
+
+    fwd_start = None
+    bwd_start = None
+
+    for i, evt in enumerate(events):
+        if evt.event_type == EVENT_MOTOR_FWD_ON:
+            fwd_start = times_ms[i]
+        elif evt.event_type == EVENT_MOTOR_FWD_OFF and fwd_start is not None:
+            motor_fwd_intervals.append((fwd_start, times_ms[i]))
+            fwd_start = None
+        elif evt.event_type == EVENT_MOTOR_BWD_ON:
+            bwd_start = times_ms[i]
+        elif evt.event_type == EVENT_MOTOR_BWD_OFF and bwd_start is not None:
+            motor_bwd_intervals.append((bwd_start, times_ms[i]))
+            bwd_start = None
+
+    for start, end in motor_fwd_intervals:
+        ax_motor.axvspan(start, end, alpha=0.5, color='orange', label='Forward' if not ax_motor.patches else '')
+
+    for start, end in motor_bwd_intervals:
+        ax_motor.axvspan(start, end, alpha=0.5, color='purple', label='Backward' if not ax_motor.patches else '')
+
+    ax_motor.set_ylabel('Motor', fontweight='bold')
+    ax_motor.set_ylim(0, 1)
+    ax_motor.grid(True, alpha=0.3)
+    ax_motor.set_yticks([])
+    if motor_fwd_intervals or motor_bwd_intervals:
+        ax_motor.legend(loc='upper right')
+
+    ax_motor.set_xlabel('Time (ms)', fontweight='bold')
+
+    plt.tight_layout()
+    return fig, axes
 
 
 # Predefined Furby command sequences

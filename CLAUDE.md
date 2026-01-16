@@ -38,7 +38,7 @@ The invoker firmware listens on **TCP port 5000** and accepts ASCII hex commands
 - `02 <nibbles>` - Send nibble stream to Furby sound coprocessor
 - `03 <64-bit hex>` - Drive motor forward (duration in microseconds)
 - `04 <64-bit hex>` - Drive motor backward (duration in microseconds)
-- `05` - Read last /RTS high-time samples
+- `05` - Read event timeline (RTS/CTS edges, data nibbles, motor events with timestamps)
 - `06 <5-bit pattern>` - Debug: directly drive CTS + D1-D4 pins
 - `07` - Poll /RTS + sensor buttons and store snapshot
 - `FF` - Ping (responds with `31337`)
@@ -149,6 +149,35 @@ board.ping()  # Returns '31337' if connected
 board.init_coprocessor()
 board.send_nibble_stream(get_furby_command("mee-mee"))
 ```
+
+### Event Timeline Analysis
+
+The `software/spirit_board.py` module provides timeline analysis functions:
+
+```python
+from spirit_board import parse_timeline, render_timeline, plot_timeline
+
+# Capture timeline after sending commands
+board.send_nibble_stream(get_furby_command("mee-mee"))
+events = parse_timeline(board.get_rts_timing())
+
+# Display timeline as text
+print(render_timeline(events, max_events=50))
+
+# Visualize timeline (requires matplotlib)
+import matplotlib.pyplot as plt
+fig, axes = plot_timeline(events, title="Mee-Mee Command Timeline")
+plt.show()
+```
+
+**Timeline Event Types:**
+- `RTS_RISE` / `RTS_FALL` - Request-to-send signal edges
+- `CTS_RISE` / `CTS_FALL` - Clear-to-send signal edges
+- `DATA` - Data nibble changes (includes nibble value)
+- `MOTOR_FWD+` / `MOTOR_FWD-` - Motor forward on/off
+- `MOTOR_BWD+` / `MOTOR_BWD-` - Motor backward on/off
+
+The timeline uses 64-bit microsecond timestamps from `esp_timer_get_time()` for precise timing analysis.
 
 ### Key Classes and Functions
 
