@@ -1,25 +1,26 @@
-//   _____  _   _ __      __ ____   _  __ ______  _____  
-//  |_   _|| \ | |\ \    / // __ \ | |/ /|  ____||  __ \ 
+//   _____  _   _ __      __ ____   _  __ ______  _____
+//  |_   _|| \ | |\ \    / // __ \ | |/ /|  ____||  __ \
 //    | |  |  \| | \ \  / /| |  | || ' / | |__   | |__) |
-//    | |  | . ` |  \ \/ / | |  | ||  <  |  __|  |  _  / 
-//   _| |_ | |\  |   \  /  | |__| || . \ | |____ | | \ \ 
+//    | |  | . ` |  \ \/ / | |  | ||  <  |  __|  |  _  /
+//   _| |_ | |\  |   \  /  | |__| || . \ | |____ | | \ \
 //  |_____||_| \_|    \/    \____/ |_|\_\|______||_|  \_\
-//                                                      
+//
 // SPIRIT board "Invoker": WiFi + OTA + Furby control
 //
-// - Connects to WiFi "RenegadeScience_Guest"
+// - Connects to WiFi (credentials from build flags)
 // - Enables Arduino OTA updates
 // - Listens on TCP port 5000
 // - Each TCP line is a hex string, starting with a control byte:
 //
 //   Control byte modes:
-//     0x01 = Initialize coprocessor
-//     0x02 = Send nibble stream (Furby bus)
-//     0x03 = Drive motor forward  (64-bit duration in microseconds)
-//     0x04 = Drive motor backward (64-bit duration in microseconds)
-//     0x05 = Read event timeline (RTS/CTS edges, data nibbles, motor events)
-//     0x06 = Debug: directly drive CTS + D1–D4 from a 5-bit pattern
-//     0x07 = Poll /RTS + feed/tummy/back buttons and store snapshot
+//     0x01 = Initialize coprocessor (Spirit only)
+//     0x02 = Send nibble stream (Furby bus) (Spirit only)
+//     0x03 = Drive motor forward (64-bit duration in microseconds) (Spirit only)
+//     0x04 = Drive motor backward (64-bit duration in microseconds) (Spirit only)
+//     0x05 = Read event timeline (RTS/CTS edges, data nibbles, motor events) (Spirit only)
+//     0x06 = Debug: directly drive CTS + D1-D4 from a 5-bit pattern (Spirit only)
+//     0x07 = Poll /RTS + feed/tummy/back buttons and store snapshot (Spirit only)
+//     0x08 = Blink LED N times (Feather only)
 //     0xFF = Ping (responds "31337")
 //
 //   Format examples:
@@ -27,6 +28,7 @@
 //     02 7F341F7F71C0000F000
 //     03 00000000000F4240
 //     07
+//     08 5    (blink 5 times, Feather only)
 //     FF
 // - Non-hex characters ignored.
 
@@ -36,17 +38,34 @@
 #include <esp_timer.h>
 
 // =========================
-// WIFI CONFIG
+// WIFI CONFIG - From build flags
 // =========================
-const char* WIFI_SSID     = "FurbyNet";
-const char* WIFI_PASSWORD = NULL;
+// Stringify macros for converting build flag values to strings
+#define XSTR(x) STR(x)
+#define STR(x) #x
 
+#ifndef WIFI_SSID
+#define WIFI_SSID UNCONFIGURED
+#endif
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD ""
+#endif
+
+const char* wifi_ssid = XSTR(WIFI_SSID);
+const char* wifi_password = XSTR(WIFI_PASSWORD);
+
+#ifdef TARGET_SPIRIT
 const char* OTA_HOSTNAME  = "TheSPIRITBoard";
+#else
+const char* OTA_HOSTNAME  = "feather";
+#endif
 const char* OTA_PASSWORD  = "admin";
 
 // =========================
-// PIN CONFIG — UPDATE FOR SPIRIT BOARD
+// PIN CONFIG
 // =========================
+#ifdef TARGET_SPIRIT
+// S.P.I.R.I.T. Board pin definitions
 const int PIN_D1   = 3;
 const int PIN_D2   = 4;
 const int PIN_D3   = 5;
@@ -61,6 +80,12 @@ const int PIN_MOTOR_BWD   = 8;
 const int PIN_BTN_FEED  = 15;
 const int PIN_BTN_TUMMY = 20;
 const int PIN_BTN_BACK  = 21;
+#endif
+
+#ifdef TARGET_FEATHER
+// Feather - no Furby hardware, just network testing
+const int PIN_LED = 15;  // Built-in LED for status
+#endif
 
 // =========================
 // CONTROL BYTES
@@ -71,11 +96,13 @@ enum ControlMode : uint8_t {
   CTRL_MOTOR_FORWARD       = 0x03,
   CTRL_MOTOR_BACKWARD      = 0x04,
   CTRL_READ_RTS_HISTORY    = 0x05,  // read event timeline (replaces old RTS timing)
-  CTRL_DEBUG_BUS_DRIVE     = 0x06,  // directly drive CTS + D1–D4
+  CTRL_DEBUG_BUS_DRIVE     = 0x06,  // directly drive CTS + D1-D4
   CTRL_POLL_INPUTS         = 0x07,  // sample RTS + buttons into snapshot register
+  CTRL_BLINK_LED           = 0x08,  // blink LED N times (Feather only)
   CTRL_PING                = 0xFF   // responds "31337"
 };
 
+#ifdef TARGET_SPIRIT
 // =========================
 // EVENT TIMELINE TYPES
 // =========================
@@ -108,11 +135,6 @@ const uint32_t INIT_PULSE_MS  = 10;
 const uint32_t INIT_RTS_GAP_US = 10000;  // 10 ms of LOW on /RTS marks end of init pulse train
 
 const uint64_t MAX_MOTOR_US   = 4000000000ULL;
-
-// =========================
-// TCP SERVER
-// =========================
-WiFiServer tcpServer(5000);
 
 // =========================
 // EVENT TIMELINE BUFFER
@@ -185,16 +207,22 @@ void sampleFurbyInputs() {
   g_lastInputSnapshot.state        = s;
   g_lastInputSnapshot.timestamp_ms = millis();
 }
+#endif  // TARGET_SPIRIT
+
+// =========================
+// TCP SERVER
+// =========================
+WiFiServer tcpServer(5000);
 
 // =========================
 // WIFI + OTA
 // =========================
 void setupWiFi() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(wifi_ssid, wifi_password);
   while (WiFi.waitForConnectResult() != WL_CONNECTED) {
     delay(5000);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.begin(wifi_ssid, wifi_password);
   }
 }
 
@@ -204,11 +232,12 @@ void setupOTA() {
   ArduinoOTA.begin();
 }
 
+#ifdef TARGET_SPIRIT
 // =========================
 // FURBY BUS HELPERS
 // =========================
 
-// Drive CTS + D1–D4 to explicit levels for continuity / wiring tests.
+// Drive CTS + D1-D4 to explicit levels for continuity / wiring tests.
 // pattern bit mapping (LSB-first):
 //   bit0 -> D1
 //   bit1 -> D2
@@ -231,6 +260,15 @@ void driveDebugBus(uint8_t pattern) {
   digitalWrite(PIN_CTS, cts ? HIGH : LOW);
 }
 
+// Drive data bus with 4-bit nibble value
+void driveDataBus(uint8_t nibble) {
+  nibble &= 0x0F;
+  digitalWrite(PIN_D1, nibble & 0x01);
+  digitalWrite(PIN_D2, nibble & 0x02);
+  digitalWrite(PIN_D3, nibble & 0x04);
+  digitalWrite(PIN_D4, nibble & 0x08);
+}
+
 // New nibble sender: /CTS low, wait /RTS high->low, then /CTS high.
 bool sendNibble(uint8_t nibble) {
   nibble &= 0x0F;
@@ -245,7 +283,7 @@ bool sendNibble(uint8_t nibble) {
   recordDataNibble(nibble);
 
   // Allow data lines to settle before presenting CTS falling edge.
-  // Increased from 10μs to 50μs to improve signal integrity and
+  // Increased from 10us to 50us to improve signal integrity and
   // reduce intermittent transmission errors.
   delayMicroseconds(3);
 
@@ -334,6 +372,7 @@ bool sendNibbleList(const uint8_t* list, size_t count) {
   }
   return true;
 }
+#endif  // TARGET_SPIRIT
 
 // =========================
 // HEX PARSER
@@ -354,6 +393,7 @@ size_t parseHexNibbles(const String &s, uint8_t *out, size_t max) {
   return count;
 }
 
+#ifdef TARGET_SPIRIT
 // =========================
 // HIGH-LEVEL ACTIONS
 // =========================
@@ -415,7 +455,7 @@ size_t doInitCoprocessor() {
     }
 
     // Small delay to avoid a completely hot spin; still much shorter than the
-    // expected ~740 µs HIGH/LOW windows.
+    // expected ~740 us HIGH/LOW windows.
     delayMicroseconds(1);
   }
 
@@ -445,6 +485,7 @@ void driveMotorBackward(uint64_t us) {
   digitalWrite(PIN_MOTOR_BWD, LOW);
   recordEvent(EVT_MOTOR_BWD_OFF);
 }
+#endif  // TARGET_SPIRIT
 
 // =========================
 // COMMAND PROCESSOR
@@ -461,6 +502,7 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       client.println("31337");
       break;
 
+#ifdef TARGET_SPIRIT
     case CTRL_INIT_COPROCESSOR: {
       // Perform the /INIT pulse and capture the resulting timeline events.
       size_t count = doInitCoprocessor();
@@ -510,7 +552,7 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       client.print(" : ");
 
       for (size_t i = 0; i < pcount; i++) {
-        // Print each payload byte as hex; if you know each byte is just a nibble (0–15),
+        // Print each payload byte as hex; if you know each byte is just a nibble (0-15),
         // this will print a single hex digit per entry.
         client.print(payload[i], HEX);
         if (i + 1 < pcount) client.print(",");
@@ -564,7 +606,7 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
     case CTRL_DEBUG_BUS_DRIVE: {
       // Expect at least 1 byte (= 2 nibbles) of payload; we use the lower 5 bits.
       if (pcount < 2) {
-        client.println("[ERROR] DEBUG_BUS requires 2 payload nibbles (00–1F)");
+        client.println("[ERROR] DEBUG_BUS requires 2 payload nibbles (00-1F)");
         return;
       }
 
@@ -620,6 +662,40 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       }
       break;
     }
+#endif  // TARGET_SPIRIT
+
+#ifdef TARGET_FEATHER
+    case CTRL_BLINK_LED: {
+      // Parse count from hex (default 3 blinks)
+      int count = 3;
+      if (pcount >= 1) {
+        count = payload[0];
+        if (count > 15) count = 15;  // Max 15 blinks
+        if (count < 1) count = 1;
+      }
+      for (int i = 0; i < count; i++) {
+        digitalWrite(PIN_LED, HIGH);
+        delay(200);
+        digitalWrite(PIN_LED, LOW);
+        delay(200);
+      }
+      client.println("OK");
+      break;
+    }
+#endif  // TARGET_FEATHER
+
+#ifndef TARGET_SPIRIT
+    // Return error for Furby-specific commands on Feather
+    case CTRL_INIT_COPROCESSOR:
+    case CTRL_SEND_NIBBLE_STREAM:
+    case CTRL_MOTOR_FORWARD:
+    case CTRL_MOTOR_BACKWARD:
+    case CTRL_READ_RTS_HISTORY:
+    case CTRL_DEBUG_BUS_DRIVE:
+    case CTRL_POLL_INPUTS:
+      client.println("[ERROR] Command not available on this target");
+      break;
+#endif
 
     default:
       client.println("[ERROR] Unknown control byte");
@@ -647,10 +723,13 @@ void handleClient(WiFiClient &client) {
 // SETUP / LOOP
 // =========================
 void setup() {
+  Serial.begin(115200);
+
+#ifdef TARGET_SPIRIT
   pinMode(PIN_BTN_FEED,  INPUT);
   pinMode(PIN_BTN_TUMMY, INPUT);
   pinMode(PIN_BTN_BACK,  INPUT);
-  
+
   pinMode(PIN_D1, OUTPUT);
   digitalWrite(PIN_D1, LOW);
   pinMode(PIN_D2, OUTPUT);
@@ -673,6 +752,12 @@ void setup() {
 
   digitalWrite(PIN_MOTOR_FWD, LOW);
   digitalWrite(PIN_MOTOR_BWD, LOW);
+#endif
+
+#ifdef TARGET_FEATHER
+  pinMode(PIN_LED, OUTPUT);
+  digitalWrite(PIN_LED, LOW);
+#endif
 
   setupWiFi();
   setupOTA();
@@ -681,7 +766,7 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
-  WiFiClient client = tcpServer.available();
+  WiFiClient client = tcpServer.accept();
   if (client) {
     handleClient(client);
     client.stop();

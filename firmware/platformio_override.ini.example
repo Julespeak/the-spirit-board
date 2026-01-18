@@ -1,0 +1,6 @@
+; Copy this file to platformio_override.ini and fill in your credentials
+; platformio_override.ini is gitignored
+[credentials]
+build_flags =
+    -D WIFI_SSID=\"YourNetworkName\"
+    -D WIFI_PASSWORD=\"YourPassword\"
