@@ -33,6 +33,7 @@
 // - Non-hex characters ignored.
 
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <esp_timer.h>
@@ -44,15 +45,53 @@
 #define XSTR(x) STR(x)
 #define STR(x) #x
 
-#ifndef WIFI_SSID
-#define WIFI_SSID UNCONFIGURED
-#endif
-#ifndef WIFI_PASSWORD
-#define WIFI_PASSWORD ""
-#endif
+// Support up to 4 WiFi networks via build flags.
+// Define WIFI_SSID_1/WIFI_PASSWORD_1 through WIFI_SSID_4/WIFI_PASSWORD_4
+// in platformio_override.ini. The board will try each in sequence.
 
-const char* wifi_ssid = XSTR(WIFI_SSID);
-const char* wifi_password = XSTR(WIFI_PASSWORD);
+WiFiMulti wifiMulti;
+
+// Track connection state for reconnection logic
+bool wasConnected = false;
+unsigned long lastReconnectAttempt = 0;
+const unsigned long RECONNECT_INTERVAL_MS = 10000;  // Try reconnecting every 10s
+
+void addConfiguredNetworks() {
+  // Add each configured network to WiFiMulti.
+  // Networks are tried in the order they're added.
+
+  #ifdef WIFI_SSID_1
+    #ifdef WIFI_PASSWORD_1
+      wifiMulti.addAP(XSTR(WIFI_SSID_1), XSTR(WIFI_PASSWORD_1));
+      Serial.print("[WiFi] Added network: ");
+      Serial.println(XSTR(WIFI_SSID_1));
+    #endif
+  #endif
+
+  #ifdef WIFI_SSID_2
+    #ifdef WIFI_PASSWORD_2
+      wifiMulti.addAP(XSTR(WIFI_SSID_2), XSTR(WIFI_PASSWORD_2));
+      Serial.print("[WiFi] Added network: ");
+      Serial.println(XSTR(WIFI_SSID_2));
+    #endif
+  #endif
+
+  #ifdef WIFI_SSID_3
+    #ifdef WIFI_PASSWORD_3
+      wifiMulti.addAP(XSTR(WIFI_SSID_3), XSTR(WIFI_PASSWORD_3));
+      Serial.print("[WiFi] Added network: ");
+      Serial.println(XSTR(WIFI_SSID_3));
+    #endif
+  #endif
+
+  #ifdef WIFI_SSID_4
+    #ifdef WIFI_PASSWORD_4
+      wifiMulti.addAP(XSTR(WIFI_SSID_4), XSTR(WIFI_PASSWORD_4));
+      Serial.print("[WiFi] Added network: ");
+      Serial.println(XSTR(WIFI_SSID_4));
+    #endif
+  #endif
+}
 
 #ifdef TARGET_SPIRIT
 const char* OTA_HOSTNAME  = "TheSPIRITBoard";
@@ -219,11 +258,23 @@ WiFiServer tcpServer(5000);
 // =========================
 void setupWiFi() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(wifi_ssid, wifi_password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+
+  // Add all configured networks
+  addConfiguredNetworks();
+
+  Serial.println("[WiFi] Connecting...");
+
+  // Try to connect (WiFiMulti will try each network in sequence)
+  while (wifiMulti.run() != WL_CONNECTED) {
+    Serial.println("[WiFi] Connection failed, retrying in 5s...");
     delay(5000);
-    WiFi.begin(wifi_ssid, wifi_password);
   }
+
+  wasConnected = true;
+  Serial.print("[WiFi] Connected to: ");
+  Serial.println(WiFi.SSID());
+  Serial.print("[WiFi] IP address: ");
+  Serial.println(WiFi.localIP());
 }
 
 void setupOTA() {
@@ -765,6 +816,29 @@ void setup() {
 }
 
 void loop() {
+  // Handle WiFi reconnection if disconnected
+  if (WiFi.status() != WL_CONNECTED) {
+    if (wasConnected) {
+      Serial.println("[WiFi] Connection lost!");
+      wasConnected = false;
+    }
+
+    unsigned long now = millis();
+    if (now - lastReconnectAttempt >= RECONNECT_INTERVAL_MS) {
+      lastReconnectAttempt = now;
+      Serial.println("[WiFi] Attempting to reconnect...");
+
+      if (wifiMulti.run() == WL_CONNECTED) {
+        wasConnected = true;
+        Serial.print("[WiFi] Reconnected to: ");
+        Serial.println(WiFi.SSID());
+        Serial.print("[WiFi] IP address: ");
+        Serial.println(WiFi.localIP());
+      }
+    }
+    return;  // Skip normal loop operations while disconnected
+  }
+
   ArduinoOTA.handle();
   WiFiClient client = tcpServer.accept();
   if (client) {

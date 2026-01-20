@@ -48,16 +48,20 @@ PlatformIO is installed as part of the project's uv environment (see `pyproject.
 
 ### WiFi Configuration
 
-WiFi credentials are externalized to a gitignored file:
+WiFi credentials are externalized to a gitignored file. The firmware supports up to 4 networks with automatic fallback - it will try each in order until one connects, and automatically reconnect if the connection drops.
 
 1. Copy `firmware/platformio_override.ini.example` to `firmware/platformio_override.ini`
 2. Edit with your credentials:
 ```ini
 [credentials]
 build_flags =
-    -D WIFI_SSID=\"YourNetworkName\"
-    -D WIFI_PASSWORD=\"YourPassword\"
+    -D WIFI_SSID_1=PrimaryNetwork
+    -D WIFI_PASSWORD_1=PrimaryPassword
+    -D WIFI_SSID_2=BackupNetwork
+    -D WIFI_PASSWORD_2=BackupPassword
 ```
+
+Only the first network is required; additional networks are optional backups.
 
 ### OTA Updates
 

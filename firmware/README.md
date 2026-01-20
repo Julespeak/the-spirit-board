@@ -31,14 +31,20 @@ uv sync
 
 ### WiFi Credentials
 
+The firmware supports up to 4 WiFi networks with automatic fallback. It will try each network in order until one connects, and automatically reconnect if the connection drops.
+
 1. Copy `platformio_override.ini.example` to `platformio_override.ini`
 2. Edit `platformio_override.ini` with your WiFi credentials:
    ```ini
    [credentials]
    build_flags =
-       -D WIFI_SSID=\"YourNetworkName\"
-       -D WIFI_PASSWORD=\"YourPassword\"
+       -D WIFI_SSID_1=PrimaryNetwork
+       -D WIFI_PASSWORD_1=PrimaryPassword
+       -D WIFI_SSID_2=BackupNetwork
+       -D WIFI_PASSWORD_2=BackupPassword
    ```
+
+Only the first network (`WIFI_SSID_1`/`WIFI_PASSWORD_1`) is required. You can configure up to 4 networks for fallback.
 
 The `platformio_override.ini` file is gitignored to keep credentials private.
 
