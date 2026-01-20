@@ -21,6 +21,7 @@
 //     0x06 = Debug: directly drive CTS + D1-D4 from a 5-bit pattern (Spirit only)
 //     0x07 = Poll /RTS + feed/tummy/back buttons and store snapshot (Spirit only)
 //     0x08 = Blink LED N times (Feather only)
+//     0x09 = Set RGB LED color: 09 RR GG BB (Feather only)
 //     0xFF = Ping (responds "31337")
 //
 //   Format examples:
@@ -37,6 +38,10 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <esp_timer.h>
+
+#ifdef TARGET_FEATHER
+#include <Adafruit_NeoPixel.h>
+#endif
 
 // =========================
 // WIFI CONFIG - From build flags
@@ -122,8 +127,9 @@ const int PIN_BTN_BACK  = 21;
 #endif
 
 #ifdef TARGET_FEATHER
-// Feather - no Furby hardware, just network testing
-const int PIN_LED = 15;  // Built-in LED for status
+// Feather ESP32-C6 - NeoPixel RGB LED for testing
+// PIN_NEOPIXEL (9) and NEOPIXEL_I2C_POWER (20) are defined by the board variant
+Adafruit_NeoPixel pixel(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 #endif
 
 // =========================
@@ -138,6 +144,7 @@ enum ControlMode : uint8_t {
   CTRL_DEBUG_BUS_DRIVE     = 0x06,  // directly drive CTS + D1-D4
   CTRL_POLL_INPUTS         = 0x07,  // sample RTS + buttons into snapshot register
   CTRL_BLINK_LED           = 0x08,  // blink LED N times (Feather only)
+  CTRL_SET_RGB             = 0x09,  // set RGB LED color (Feather only): 09 RR GG BB
   CTRL_PING                = 0xFF   // responds "31337"
 };
 
@@ -724,13 +731,38 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
         if (count > 15) count = 15;  // Max 15 blinks
         if (count < 1) count = 1;
       }
+      // Blink white on NeoPixel
       for (int i = 0; i < count; i++) {
-        digitalWrite(PIN_LED, HIGH);
+        pixel.setPixelColor(0, 255, 255, 255);  // White
+        pixel.show();
         delay(200);
-        digitalWrite(PIN_LED, LOW);
+        pixel.setPixelColor(0, 0, 0, 0);  // Off
+        pixel.show();
         delay(200);
       }
       client.println("OK");
+      break;
+    }
+
+    case CTRL_SET_RGB: {
+      // Parse RGB values from payload: 09 RR GG BB (6 nibbles = 3 bytes)
+      if (pcount < 6) {
+        client.println("[ERROR] SET_RGB requires 6 nibbles (RRGGBB)");
+        break;
+      }
+      uint8_t r = (payload[0] << 4) | payload[1];
+      uint8_t g = (payload[2] << 4) | payload[3];
+      uint8_t b = (payload[4] << 4) | payload[5];
+
+      pixel.setPixelColor(0, r, g, b);
+      pixel.show();
+
+      client.print("[OK] RGB set to ");
+      client.print(r);
+      client.print(",");
+      client.print(g);
+      client.print(",");
+      client.println(b);
       break;
     }
 #endif  // TARGET_FEATHER
@@ -806,8 +838,15 @@ void setup() {
 #endif
 
 #ifdef TARGET_FEATHER
-  pinMode(PIN_LED, OUTPUT);
-  digitalWrite(PIN_LED, LOW);
+  // Enable NeoPixel power (NEOPIXEL_I2C_POWER is defined by board variant)
+  pinMode(NEOPIXEL_I2C_POWER, OUTPUT);
+  digitalWrite(NEOPIXEL_I2C_POWER, HIGH);
+
+  // Initialize NeoPixel
+  pixel.begin();
+  pixel.setBrightness(50);  // 0-255, start at ~20%
+  pixel.setPixelColor(0, 0, 0, 0);  // Start with LED off
+  pixel.show();
 #endif
 
   setupWiFi();

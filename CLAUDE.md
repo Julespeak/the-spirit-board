@@ -82,6 +82,7 @@ The invoker firmware listens on **TCP port 5000** and accepts ASCII hex commands
 - `06 <5-bit pattern>` - Debug: directly drive CTS + D1-D4 pins (Spirit only)
 - `07` - Poll /RTS + sensor buttons and store snapshot (Spirit only)
 - `08 <count>` - Blink LED N times (Feather only)
+- `09 <RRGGBB>` - Set RGB LED color (Feather only)
 - `FF` - Ping (responds with `31337`)
 
 **Example testing with netcat:**
@@ -243,7 +244,8 @@ The timeline uses 64-bit microsecond timestamps from `esp_timer_get_time()` for 
 
 ### Example Notebooks
 
-- `notebooks/SpiritBoardExample.ipynb` - Canonical examples of all library functions
+- `notebooks/SpiritBoardExample.ipynb` - Canonical examples of all Spirit Board library functions
+- `notebooks/FeatherExample.ipynb` - Feather testbed examples (ping, LED control, RGB)
 - `notebooks/SpiritBoardWorking.ipynb` - Working copy (git-ignored) for development
 
 ## Data Analysis Environment
