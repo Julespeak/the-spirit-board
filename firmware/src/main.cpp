@@ -22,6 +22,7 @@
 //     0x07 = Poll /RTS + feed/tummy/back buttons and store snapshot (Spirit only)
 //     0x08 = Blink LED N times (Feather only)
 //     0x09 = Set RGB LED color: 09 RR GG BB (Feather only)
+//     0x0A = Record 1s of audio from I2S mic (Feather only): returns binary samples
 //     0xFF = Ping (responds "31337")
 //
 //   Format examples:
@@ -41,6 +42,7 @@
 
 #ifdef TARGET_FEATHER
 #include <Adafruit_NeoPixel.h>
+#include "driver/i2s.h"
 #endif
 
 // =========================
@@ -130,6 +132,105 @@ const int PIN_BTN_BACK  = 21;
 // Feather ESP32-C6 - NeoPixel RGB LED for testing
 // PIN_NEOPIXEL (9) and NEOPIXEL_I2C_POWER (20) are defined by the board variant
 Adafruit_NeoPixel pixel(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+
+// I2S Microphone configuration
+// These pins should be connected to an I2S MEMS microphone (e.g., SPH0645)
+const int I2S_BCLK_PIN = 16;   // Bit clock
+const int I2S_WS_PIN   = 17;   // Word select / LRCLK
+const int I2S_DATA_PIN = 18;   // Data from microphone
+
+const int I2S_PORT = I2S_NUM_0;
+const int MIC_SAMPLE_RATE = 16000;
+const int MIC_RECORD_SECONDS = 1;
+const int MIC_BUFFER_SAMPLES = 256;  // DMA buffer size
+const int MIC_TOTAL_SAMPLES = MIC_SAMPLE_RATE * MIC_RECORD_SECONDS;
+
+// Buffer for recording audio (16-bit samples)
+int16_t* audioBuffer = nullptr;
+bool i2sInitialized = false;
+
+void setupI2SMic() {
+  i2s_config_t i2s_config = {
+    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+    .sample_rate = MIC_SAMPLE_RATE,
+    .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
+    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+    .communication_format = I2S_COMM_FORMAT_I2S,
+    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count = 4,
+    .dma_buf_len = MIC_BUFFER_SAMPLES,
+    .use_apll = false,
+    .tx_desc_auto_clear = false,
+    .fixed_mclk = 0
+  };
+
+  i2s_pin_config_t pin_config = {
+    .bck_io_num = I2S_BCLK_PIN,
+    .ws_io_num = I2S_WS_PIN,
+    .data_out_num = I2S_PIN_NO_CHANGE,
+    .data_in_num = I2S_DATA_PIN
+  };
+
+  esp_err_t err = i2s_driver_install((i2s_port_t)I2S_PORT, &i2s_config, 0, NULL);
+  if (err != ESP_OK) {
+    Serial.printf("[I2S] Driver install failed: %d\n", err);
+    return;
+  }
+
+  err = i2s_set_pin((i2s_port_t)I2S_PORT, &pin_config);
+  if (err != ESP_OK) {
+    Serial.printf("[I2S] Set pin failed: %d\n", err);
+    return;
+  }
+
+  i2s_zero_dma_buffer((i2s_port_t)I2S_PORT);
+
+  // Allocate audio buffer
+  audioBuffer = (int16_t*)malloc(MIC_TOTAL_SAMPLES * sizeof(int16_t));
+  if (audioBuffer == nullptr) {
+    Serial.println("[I2S] Failed to allocate audio buffer");
+    return;
+  }
+
+  i2sInitialized = true;
+  Serial.println("[I2S] Microphone initialized");
+}
+
+// Record audio and return number of samples captured
+int recordAudio() {
+  if (!i2sInitialized || audioBuffer == nullptr) {
+    return -1;
+  }
+
+  int32_t rawBuffer[MIC_BUFFER_SAMPLES];
+  int samplesRecorded = 0;
+
+  // Clear buffer
+  memset(audioBuffer, 0, MIC_TOTAL_SAMPLES * sizeof(int16_t));
+
+  while (samplesRecorded < MIC_TOTAL_SAMPLES) {
+    size_t bytesRead = 0;
+    esp_err_t result = i2s_read(
+      (i2s_port_t)I2S_PORT,
+      rawBuffer,
+      sizeof(rawBuffer),
+      &bytesRead,
+      portMAX_DELAY
+    );
+
+    if (result != ESP_OK) {
+      break;
+    }
+
+    int samplesRead = bytesRead / sizeof(int32_t);
+    for (int i = 0; i < samplesRead && samplesRecorded < MIC_TOTAL_SAMPLES; i++) {
+      // Convert 32-bit to 16-bit by shifting (SPH0645 data is in upper bits)
+      audioBuffer[samplesRecorded++] = (int16_t)(rawBuffer[i] >> 14);
+    }
+  }
+
+  return samplesRecorded;
+}
 #endif
 
 // =========================
@@ -145,6 +246,7 @@ enum ControlMode : uint8_t {
   CTRL_POLL_INPUTS         = 0x07,  // sample RTS + buttons into snapshot register
   CTRL_BLINK_LED           = 0x08,  // blink LED N times (Feather only)
   CTRL_SET_RGB             = 0x09,  // set RGB LED color (Feather only): 09 RR GG BB
+  CTRL_RECORD_AUDIO        = 0x0A,  // record 1s of audio (Feather only): returns binary samples
   CTRL_PING                = 0xFF   // responds "31337"
 };
 
@@ -765,6 +867,50 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       client.println(b);
       break;
     }
+
+    case CTRL_RECORD_AUDIO: {
+      if (!i2sInitialized) {
+        client.println("[ERROR] I2S microphone not initialized");
+        break;
+      }
+
+      // Flash LED to indicate recording
+      pixel.setPixelColor(0, 255, 0, 0);  // Red = recording
+      pixel.show();
+
+      Serial.println("[MIC] Recording 1 second of audio...");
+      int samplesRecorded = recordAudio();
+
+      pixel.setPixelColor(0, 0, 0, 0);  // Off when done
+      pixel.show();
+
+      if (samplesRecorded < 0) {
+        client.println("[ERROR] Recording failed");
+        break;
+      }
+
+      Serial.printf("[MIC] Recorded %d samples\n", samplesRecorded);
+
+      // Send header: sample rate (4 bytes) + sample count (4 bytes)
+      // Then raw 16-bit signed samples as binary
+      uint32_t sampleRate = MIC_SAMPLE_RATE;
+      uint32_t sampleCount = (uint32_t)samplesRecorded;
+
+      // Write binary header
+      client.write((uint8_t*)&sampleRate, 4);
+      client.write((uint8_t*)&sampleCount, 4);
+
+      // Write audio samples in chunks to avoid buffer issues
+      const int CHUNK_SIZE = 512;  // samples per chunk
+      for (int i = 0; i < samplesRecorded; i += CHUNK_SIZE) {
+        int remaining = samplesRecorded - i;
+        int toSend = (remaining < CHUNK_SIZE) ? remaining : CHUNK_SIZE;
+        client.write((uint8_t*)&audioBuffer[i], toSend * sizeof(int16_t));
+      }
+
+      Serial.println("[MIC] Audio data sent");
+      break;
+    }
 #endif  // TARGET_FEATHER
 
 #ifndef TARGET_SPIRIT
@@ -847,6 +993,9 @@ void setup() {
   pixel.setBrightness(50);  // 0-255, start at ~20%
   pixel.setPixelColor(0, 0, 0, 0);  // Start with LED off
   pixel.show();
+
+  // Initialize I2S microphone
+  setupI2SMic();
 #endif
 
   setupWiFi();
