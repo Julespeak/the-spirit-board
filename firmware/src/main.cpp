@@ -141,9 +141,8 @@ const int I2S_DATA_PIN = 18;   // Data from microphone
 
 const int I2S_PORT = I2S_NUM_0;
 const int MIC_SAMPLE_RATE = 16000;
-const int MIC_RECORD_SECONDS = 1;
 const int MIC_BUFFER_SAMPLES = 256;  // DMA buffer size
-const int MIC_TOTAL_SAMPLES = MIC_SAMPLE_RATE * MIC_RECORD_SECONDS;
+const int MIC_TOTAL_SAMPLES = 8000;  // 0.5 seconds at 16kHz (16KB buffer)
 
 // Buffer for recording audio (16-bit samples)
 int16_t* audioBuffer = nullptr;
