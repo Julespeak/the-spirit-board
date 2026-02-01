@@ -91,4 +91,6 @@ Both targets listen on **TCP port 5000**. Commands available depend on target:
 | `06 <5-bit>` | Yes | No | Debug bus drive |
 | `07` | Yes | No | Poll inputs |
 | `08 <count>` | No | Yes | Blink LED N times |
+| `09 <RRGGBB>` | No | Yes | Set RGB LED color |
+| `0A` | Yes | Yes | Record 0.5s audio (returns binary) |
 | `FF` | Yes | Yes | Ping (returns `31337`) |

@@ -22,7 +22,7 @@
 //     0x07 = Poll /RTS + feed/tummy/back buttons and store snapshot (Spirit only)
 //     0x08 = Blink LED N times (Feather only)
 //     0x09 = Set RGB LED color: 09 RR GG BB (Feather only)
-//     0x0A = Record 1s of audio from I2S mic (Feather only): returns binary samples
+//     0x0A = Record 0.5s of audio from I2S mic: returns binary samples
 //     0xFF = Ping (responds "31337")
 //
 //   Format examples:
@@ -39,10 +39,10 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <esp_timer.h>
+#include "driver/i2s.h"
 
 #ifdef TARGET_FEATHER
 #include <Adafruit_NeoPixel.h>
-#include "driver/i2s.h"
 #endif
 
 // =========================
@@ -132,8 +132,11 @@ const int PIN_BTN_BACK  = 21;
 // Feather ESP32-C6 - NeoPixel RGB LED for testing
 // PIN_NEOPIXEL (9) and NEOPIXEL_I2C_POWER (20) are defined by the board variant
 Adafruit_NeoPixel pixel(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+#endif
 
-// I2S Microphone configuration
+// =========================
+// I2S MICROPHONE (both targets)
+// =========================
 // These pins should be connected to an I2S MEMS microphone (e.g., SPH0645)
 const int I2S_BCLK_PIN = 16;   // Bit clock
 const int I2S_WS_PIN   = 17;   // Word select / LRCLK
@@ -230,7 +233,6 @@ int recordAudio() {
 
   return samplesRecorded;
 }
-#endif
 
 // =========================
 // CONTROL BYTES
@@ -866,22 +868,28 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       client.println(b);
       break;
     }
+#endif  // TARGET_FEATHER
 
+    // Record audio - available on both targets
     case CTRL_RECORD_AUDIO: {
       if (!i2sInitialized) {
         client.println("[ERROR] I2S microphone not initialized");
         break;
       }
 
-      // Flash LED to indicate recording
+#ifdef TARGET_FEATHER
+      // Flash LED to indicate recording (Feather only)
       pixel.setPixelColor(0, 255, 0, 0);  // Red = recording
       pixel.show();
+#endif
 
-      Serial.println("[MIC] Recording 1 second of audio...");
+      Serial.println("[MIC] Recording 0.5 seconds of audio...");
       int samplesRecorded = recordAudio();
 
+#ifdef TARGET_FEATHER
       pixel.setPixelColor(0, 0, 0, 0);  // Off when done
       pixel.show();
+#endif
 
       if (samplesRecorded < 0) {
         client.println("[ERROR] Recording failed");
@@ -910,7 +918,6 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       Serial.println("[MIC] Audio data sent");
       break;
     }
-#endif  // TARGET_FEATHER
 
 #ifndef TARGET_SPIRIT
     // Return error for Furby-specific commands on Feather
@@ -992,10 +999,10 @@ void setup() {
   pixel.setBrightness(50);  // 0-255, start at ~20%
   pixel.setPixelColor(0, 0, 0, 0);  // Start with LED off
   pixel.show();
-
-  // Initialize I2S microphone
-  setupI2SMic();
 #endif
+
+  // Initialize I2S microphone (both targets)
+  setupI2SMic();
 
   setupWiFi();
   setupOTA();

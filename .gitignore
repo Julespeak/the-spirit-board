@@ -23,3 +23,6 @@ notebooks/legacy/
 
 # WiFi credentials (keep private)
 firmware/platformio_override.ini
+
+# Working files
+project_plans/
