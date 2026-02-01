@@ -1,25 +1,28 @@
-//   _____  _   _ __      __ ____   _  __ ______  _____  
-//  |_   _|| \ | |\ \    / // __ \ | |/ /|  ____||  __ \ 
+//   _____  _   _ __      __ ____   _  __ ______  _____
+//  |_   _|| \ | |\ \    / // __ \ | |/ /|  ____||  __ \
 //    | |  |  \| | \ \  / /| |  | || ' / | |__   | |__) |
-//    | |  | . ` |  \ \/ / | |  | ||  <  |  __|  |  _  / 
-//   _| |_ | |\  |   \  /  | |__| || . \ | |____ | | \ \ 
+//    | |  | . ` |  \ \/ / | |  | ||  <  |  __|  |  _  /
+//   _| |_ | |\  |   \  /  | |__| || . \ | |____ | | \ \
 //  |_____||_| \_|    \/    \____/ |_|\_\|______||_|  \_\
-//                                                      
+//
 // SPIRIT board "Invoker": WiFi + OTA + Furby control
 //
-// - Connects to WiFi "RenegadeScience_Guest"
+// - Connects to WiFi (credentials from build flags)
 // - Enables Arduino OTA updates
 // - Listens on TCP port 5000
 // - Each TCP line is a hex string, starting with a control byte:
 //
 //   Control byte modes:
-//     0x01 = Initialize coprocessor
-//     0x02 = Send nibble stream (Furby bus)
-//     0x03 = Drive motor forward  (64-bit duration in microseconds)
-//     0x04 = Drive motor backward (64-bit duration in microseconds)
-//     0x05 = Read event timeline (RTS/CTS edges, data nibbles, motor events)
-//     0x06 = Debug: directly drive CTS + D1–D4 from a 5-bit pattern
-//     0x07 = Poll /RTS + feed/tummy/back buttons and store snapshot
+//     0x01 = Initialize coprocessor (Spirit only)
+//     0x02 = Send nibble stream (Furby bus) (Spirit only)
+//     0x03 = Drive motor forward (64-bit duration in microseconds) (Spirit only)
+//     0x04 = Drive motor backward (64-bit duration in microseconds) (Spirit only)
+//     0x05 = Read event timeline (RTS/CTS edges, data nibbles, motor events) (Spirit only)
+//     0x06 = Debug: directly drive CTS + D1-D4 from a 5-bit pattern (Spirit only)
+//     0x07 = Poll /RTS + feed/tummy/back buttons and store snapshot (Spirit only)
+//     0x08 = Blink LED N times (Feather only)
+//     0x09 = Set RGB LED color: 09 RR GG BB (Feather only)
+//     0x0A = Record 0.5s of audio from I2S mic: returns binary samples
 //     0xFF = Ping (responds "31337")
 //
 //   Format examples:
@@ -27,26 +30,88 @@
 //     02 7F341F7F71C0000F000
 //     03 00000000000F4240
 //     07
+//     08 5    (blink 5 times, Feather only)
 //     FF
 // - Non-hex characters ignored.
 
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <esp_timer.h>
+#include "driver/i2s.h"
+
+#ifdef TARGET_FEATHER
+#include <Adafruit_NeoPixel.h>
+#endif
 
 // =========================
-// WIFI CONFIG
+// WIFI CONFIG - From build flags
 // =========================
-const char* WIFI_SSID     = "FurbyNet";
-const char* WIFI_PASSWORD = NULL;
+// Stringify macros for converting build flag values to strings
+#define XSTR(x) STR(x)
+#define STR(x) #x
 
+// Support up to 4 WiFi networks via build flags.
+// Define WIFI_SSID_1/WIFI_PASSWORD_1 through WIFI_SSID_4/WIFI_PASSWORD_4
+// in platformio_override.ini. The board will try each in sequence.
+
+WiFiMulti wifiMulti;
+
+// Track connection state for reconnection logic
+bool wasConnected = false;
+unsigned long lastReconnectAttempt = 0;
+const unsigned long RECONNECT_INTERVAL_MS = 10000;  // Try reconnecting every 10s
+
+void addConfiguredNetworks() {
+  // Add each configured network to WiFiMulti.
+  // Networks are tried in the order they're added.
+
+  #ifdef WIFI_SSID_1
+    #ifdef WIFI_PASSWORD_1
+      wifiMulti.addAP(XSTR(WIFI_SSID_1), XSTR(WIFI_PASSWORD_1));
+      Serial.print("[WiFi] Added network: ");
+      Serial.println(XSTR(WIFI_SSID_1));
+    #endif
+  #endif
+
+  #ifdef WIFI_SSID_2
+    #ifdef WIFI_PASSWORD_2
+      wifiMulti.addAP(XSTR(WIFI_SSID_2), XSTR(WIFI_PASSWORD_2));
+      Serial.print("[WiFi] Added network: ");
+      Serial.println(XSTR(WIFI_SSID_2));
+    #endif
+  #endif
+
+  #ifdef WIFI_SSID_3
+    #ifdef WIFI_PASSWORD_3
+      wifiMulti.addAP(XSTR(WIFI_SSID_3), XSTR(WIFI_PASSWORD_3));
+      Serial.print("[WiFi] Added network: ");
+      Serial.println(XSTR(WIFI_SSID_3));
+    #endif
+  #endif
+
+  #ifdef WIFI_SSID_4
+    #ifdef WIFI_PASSWORD_4
+      wifiMulti.addAP(XSTR(WIFI_SSID_4), XSTR(WIFI_PASSWORD_4));
+      Serial.print("[WiFi] Added network: ");
+      Serial.println(XSTR(WIFI_SSID_4));
+    #endif
+  #endif
+}
+
+#ifdef TARGET_SPIRIT
 const char* OTA_HOSTNAME  = "TheSPIRITBoard";
+#else
+const char* OTA_HOSTNAME  = "feather";
+#endif
 const char* OTA_PASSWORD  = "admin";
 
 // =========================
-// PIN CONFIG — UPDATE FOR SPIRIT BOARD
+// PIN CONFIG
 // =========================
+#ifdef TARGET_SPIRIT
+// S.P.I.R.I.T. Board pin definitions
 const int PIN_D1   = 3;
 const int PIN_D2   = 4;
 const int PIN_D3   = 5;
@@ -61,6 +126,113 @@ const int PIN_MOTOR_BWD   = 8;
 const int PIN_BTN_FEED  = 15;
 const int PIN_BTN_TUMMY = 20;
 const int PIN_BTN_BACK  = 21;
+#endif
+
+#ifdef TARGET_FEATHER
+// Feather ESP32-C6 - NeoPixel RGB LED for testing
+// PIN_NEOPIXEL (9) and NEOPIXEL_I2C_POWER (20) are defined by the board variant
+Adafruit_NeoPixel pixel(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+#endif
+
+// =========================
+// I2S MICROPHONE (both targets)
+// =========================
+// These pins should be connected to an I2S MEMS microphone (e.g., SPH0645)
+const int I2S_BCLK_PIN = 16;   // Bit clock
+const int I2S_WS_PIN   = 17;   // Word select / LRCLK
+const int I2S_DATA_PIN = 18;   // Data from microphone
+
+const int I2S_PORT = I2S_NUM_0;
+const int MIC_SAMPLE_RATE = 16000;
+const int MIC_BUFFER_SAMPLES = 256;  // DMA buffer size
+const int MIC_TOTAL_SAMPLES = 8000;  // 0.5 seconds at 16kHz (16KB buffer)
+
+// Buffer for recording audio (16-bit samples)
+int16_t* audioBuffer = nullptr;
+bool i2sInitialized = false;
+
+void setupI2SMic() {
+  i2s_config_t i2s_config = {
+    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+    .sample_rate = MIC_SAMPLE_RATE,
+    .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
+    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+    .communication_format = I2S_COMM_FORMAT_I2S,
+    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count = 4,
+    .dma_buf_len = MIC_BUFFER_SAMPLES,
+    .use_apll = false,
+    .tx_desc_auto_clear = false,
+    .fixed_mclk = 0
+  };
+
+  i2s_pin_config_t pin_config = {
+    .bck_io_num = I2S_BCLK_PIN,
+    .ws_io_num = I2S_WS_PIN,
+    .data_out_num = I2S_PIN_NO_CHANGE,
+    .data_in_num = I2S_DATA_PIN
+  };
+
+  esp_err_t err = i2s_driver_install((i2s_port_t)I2S_PORT, &i2s_config, 0, NULL);
+  if (err != ESP_OK) {
+    Serial.printf("[I2S] Driver install failed: %d\n", err);
+    return;
+  }
+
+  err = i2s_set_pin((i2s_port_t)I2S_PORT, &pin_config);
+  if (err != ESP_OK) {
+    Serial.printf("[I2S] Set pin failed: %d\n", err);
+    return;
+  }
+
+  i2s_zero_dma_buffer((i2s_port_t)I2S_PORT);
+
+  // Allocate audio buffer
+  audioBuffer = (int16_t*)malloc(MIC_TOTAL_SAMPLES * sizeof(int16_t));
+  if (audioBuffer == nullptr) {
+    Serial.println("[I2S] Failed to allocate audio buffer");
+    return;
+  }
+
+  i2sInitialized = true;
+  Serial.println("[I2S] Microphone initialized");
+}
+
+// Record audio and return number of samples captured
+int recordAudio() {
+  if (!i2sInitialized || audioBuffer == nullptr) {
+    return -1;
+  }
+
+  int32_t rawBuffer[MIC_BUFFER_SAMPLES];
+  int samplesRecorded = 0;
+
+  // Clear buffer
+  memset(audioBuffer, 0, MIC_TOTAL_SAMPLES * sizeof(int16_t));
+
+  while (samplesRecorded < MIC_TOTAL_SAMPLES) {
+    size_t bytesRead = 0;
+    esp_err_t result = i2s_read(
+      (i2s_port_t)I2S_PORT,
+      rawBuffer,
+      sizeof(rawBuffer),
+      &bytesRead,
+      portMAX_DELAY
+    );
+
+    if (result != ESP_OK) {
+      break;
+    }
+
+    int samplesRead = bytesRead / sizeof(int32_t);
+    for (int i = 0; i < samplesRead && samplesRecorded < MIC_TOTAL_SAMPLES; i++) {
+      // Convert 32-bit to 16-bit by shifting (SPH0645 data is in upper bits)
+      audioBuffer[samplesRecorded++] = (int16_t)(rawBuffer[i] >> 14);
+    }
+  }
+
+  return samplesRecorded;
+}
 
 // =========================
 // CONTROL BYTES
@@ -71,11 +243,15 @@ enum ControlMode : uint8_t {
   CTRL_MOTOR_FORWARD       = 0x03,
   CTRL_MOTOR_BACKWARD      = 0x04,
   CTRL_READ_RTS_HISTORY    = 0x05,  // read event timeline (replaces old RTS timing)
-  CTRL_DEBUG_BUS_DRIVE     = 0x06,  // directly drive CTS + D1–D4
+  CTRL_DEBUG_BUS_DRIVE     = 0x06,  // directly drive CTS + D1-D4
   CTRL_POLL_INPUTS         = 0x07,  // sample RTS + buttons into snapshot register
+  CTRL_BLINK_LED           = 0x08,  // blink LED N times (Feather only)
+  CTRL_SET_RGB             = 0x09,  // set RGB LED color (Feather only): 09 RR GG BB
+  CTRL_RECORD_AUDIO        = 0x0A,  // record 1s of audio (Feather only): returns binary samples
   CTRL_PING                = 0xFF   // responds "31337"
 };
 
+#ifdef TARGET_SPIRIT
 // =========================
 // EVENT TIMELINE TYPES
 // =========================
@@ -108,11 +284,6 @@ const uint32_t INIT_PULSE_MS  = 10;
 const uint32_t INIT_RTS_GAP_US = 10000;  // 10 ms of LOW on /RTS marks end of init pulse train
 
 const uint64_t MAX_MOTOR_US   = 4000000000ULL;
-
-// =========================
-// TCP SERVER
-// =========================
-WiFiServer tcpServer(5000);
 
 // =========================
 // EVENT TIMELINE BUFFER
@@ -185,17 +356,35 @@ void sampleFurbyInputs() {
   g_lastInputSnapshot.state        = s;
   g_lastInputSnapshot.timestamp_ms = millis();
 }
+#endif  // TARGET_SPIRIT
+
+// =========================
+// TCP SERVER
+// =========================
+WiFiServer tcpServer(5000);
 
 // =========================
 // WIFI + OTA
 // =========================
 void setupWiFi() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+
+  // Add all configured networks
+  addConfiguredNetworks();
+
+  Serial.println("[WiFi] Connecting...");
+
+  // Try to connect (WiFiMulti will try each network in sequence)
+  while (wifiMulti.run() != WL_CONNECTED) {
+    Serial.println("[WiFi] Connection failed, retrying in 5s...");
     delay(5000);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
+
+  wasConnected = true;
+  Serial.print("[WiFi] Connected to: ");
+  Serial.println(WiFi.SSID());
+  Serial.print("[WiFi] IP address: ");
+  Serial.println(WiFi.localIP());
 }
 
 void setupOTA() {
@@ -204,11 +393,12 @@ void setupOTA() {
   ArduinoOTA.begin();
 }
 
+#ifdef TARGET_SPIRIT
 // =========================
 // FURBY BUS HELPERS
 // =========================
 
-// Drive CTS + D1–D4 to explicit levels for continuity / wiring tests.
+// Drive CTS + D1-D4 to explicit levels for continuity / wiring tests.
 // pattern bit mapping (LSB-first):
 //   bit0 -> D1
 //   bit1 -> D2
@@ -231,6 +421,15 @@ void driveDebugBus(uint8_t pattern) {
   digitalWrite(PIN_CTS, cts ? HIGH : LOW);
 }
 
+// Drive data bus with 4-bit nibble value
+void driveDataBus(uint8_t nibble) {
+  nibble &= 0x0F;
+  digitalWrite(PIN_D1, nibble & 0x01);
+  digitalWrite(PIN_D2, nibble & 0x02);
+  digitalWrite(PIN_D3, nibble & 0x04);
+  digitalWrite(PIN_D4, nibble & 0x08);
+}
+
 // New nibble sender: /CTS low, wait /RTS high->low, then /CTS high.
 bool sendNibble(uint8_t nibble) {
   nibble &= 0x0F;
@@ -245,7 +444,7 @@ bool sendNibble(uint8_t nibble) {
   recordDataNibble(nibble);
 
   // Allow data lines to settle before presenting CTS falling edge.
-  // Increased from 10μs to 50μs to improve signal integrity and
+  // Increased from 10us to 50us to improve signal integrity and
   // reduce intermittent transmission errors.
   delayMicroseconds(3);
 
@@ -334,6 +533,7 @@ bool sendNibbleList(const uint8_t* list, size_t count) {
   }
   return true;
 }
+#endif  // TARGET_SPIRIT
 
 // =========================
 // HEX PARSER
@@ -354,6 +554,7 @@ size_t parseHexNibbles(const String &s, uint8_t *out, size_t max) {
   return count;
 }
 
+#ifdef TARGET_SPIRIT
 // =========================
 // HIGH-LEVEL ACTIONS
 // =========================
@@ -415,7 +616,7 @@ size_t doInitCoprocessor() {
     }
 
     // Small delay to avoid a completely hot spin; still much shorter than the
-    // expected ~740 µs HIGH/LOW windows.
+    // expected ~740 us HIGH/LOW windows.
     delayMicroseconds(1);
   }
 
@@ -445,6 +646,7 @@ void driveMotorBackward(uint64_t us) {
   digitalWrite(PIN_MOTOR_BWD, LOW);
   recordEvent(EVT_MOTOR_BWD_OFF);
 }
+#endif  // TARGET_SPIRIT
 
 // =========================
 // COMMAND PROCESSOR
@@ -461,6 +663,7 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       client.println("31337");
       break;
 
+#ifdef TARGET_SPIRIT
     case CTRL_INIT_COPROCESSOR: {
       // Perform the /INIT pulse and capture the resulting timeline events.
       size_t count = doInitCoprocessor();
@@ -510,7 +713,7 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       client.print(" : ");
 
       for (size_t i = 0; i < pcount; i++) {
-        // Print each payload byte as hex; if you know each byte is just a nibble (0–15),
+        // Print each payload byte as hex; if you know each byte is just a nibble (0-15),
         // this will print a single hex digit per entry.
         client.print(payload[i], HEX);
         if (i + 1 < pcount) client.print(",");
@@ -564,7 +767,7 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
     case CTRL_DEBUG_BUS_DRIVE: {
       // Expect at least 1 byte (= 2 nibbles) of payload; we use the lower 5 bits.
       if (pcount < 2) {
-        client.println("[ERROR] DEBUG_BUS requires 2 payload nibbles (00–1F)");
+        client.println("[ERROR] DEBUG_BUS requires 2 payload nibbles (00-1F)");
         return;
       }
 
@@ -620,6 +823,114 @@ void processCommand(uint8_t* nibbles, size_t n, WiFiClient &client) {
       }
       break;
     }
+#endif  // TARGET_SPIRIT
+
+#ifdef TARGET_FEATHER
+    case CTRL_BLINK_LED: {
+      // Parse count from hex (default 3 blinks)
+      int count = 3;
+      if (pcount >= 1) {
+        count = payload[0];
+        if (count > 15) count = 15;  // Max 15 blinks
+        if (count < 1) count = 1;
+      }
+      // Blink white on NeoPixel
+      for (int i = 0; i < count; i++) {
+        pixel.setPixelColor(0, 255, 255, 255);  // White
+        pixel.show();
+        delay(200);
+        pixel.setPixelColor(0, 0, 0, 0);  // Off
+        pixel.show();
+        delay(200);
+      }
+      client.println("OK");
+      break;
+    }
+
+    case CTRL_SET_RGB: {
+      // Parse RGB values from payload: 09 RR GG BB (6 nibbles = 3 bytes)
+      if (pcount < 6) {
+        client.println("[ERROR] SET_RGB requires 6 nibbles (RRGGBB)");
+        break;
+      }
+      uint8_t r = (payload[0] << 4) | payload[1];
+      uint8_t g = (payload[2] << 4) | payload[3];
+      uint8_t b = (payload[4] << 4) | payload[5];
+
+      pixel.setPixelColor(0, r, g, b);
+      pixel.show();
+
+      client.print("[OK] RGB set to ");
+      client.print(r);
+      client.print(",");
+      client.print(g);
+      client.print(",");
+      client.println(b);
+      break;
+    }
+#endif  // TARGET_FEATHER
+
+    // Record audio - available on both targets
+    case CTRL_RECORD_AUDIO: {
+      if (!i2sInitialized) {
+        client.println("[ERROR] I2S microphone not initialized");
+        break;
+      }
+
+#ifdef TARGET_FEATHER
+      // Flash LED to indicate recording (Feather only)
+      pixel.setPixelColor(0, 255, 0, 0);  // Red = recording
+      pixel.show();
+#endif
+
+      Serial.println("[MIC] Recording 0.5 seconds of audio...");
+      int samplesRecorded = recordAudio();
+
+#ifdef TARGET_FEATHER
+      pixel.setPixelColor(0, 0, 0, 0);  // Off when done
+      pixel.show();
+#endif
+
+      if (samplesRecorded < 0) {
+        client.println("[ERROR] Recording failed");
+        break;
+      }
+
+      Serial.printf("[MIC] Recorded %d samples\n", samplesRecorded);
+
+      // Send header: sample rate (4 bytes) + sample count (4 bytes)
+      // Then raw 16-bit signed samples as binary
+      uint32_t sampleRate = MIC_SAMPLE_RATE;
+      uint32_t sampleCount = (uint32_t)samplesRecorded;
+
+      // Write binary header
+      client.write((uint8_t*)&sampleRate, 4);
+      client.write((uint8_t*)&sampleCount, 4);
+
+      // Write audio samples in chunks to avoid buffer issues
+      const int CHUNK_SIZE = 512;  // samples per chunk
+      for (int i = 0; i < samplesRecorded; i += CHUNK_SIZE) {
+        int remaining = samplesRecorded - i;
+        int toSend = (remaining < CHUNK_SIZE) ? remaining : CHUNK_SIZE;
+        client.write((uint8_t*)&audioBuffer[i], toSend * sizeof(int16_t));
+      }
+
+      Serial.println("[MIC] Audio data sent");
+      break;
+    }
+
+#ifndef TARGET_SPIRIT
+    // Return error for Furby-specific commands on Feather
+    case CTRL_INIT_COPROCESSOR:
+    case CTRL_SEND_NIBBLE_STREAM:
+    case CTRL_MOTOR_FORWARD:
+    case CTRL_MOTOR_BACKWARD:
+    case CTRL_READ_RTS_HISTORY:
+    case CTRL_DEBUG_BUS_DRIVE:
+    case CTRL_POLL_INPUTS:
+      client.println("[ERROR] Command not available on this target");
+      break;
+#endif
 
     default:
       client.println("[ERROR] Unknown control byte");
@@ -647,10 +958,13 @@ void handleClient(WiFiClient &client) {
 // SETUP / LOOP
 // =========================
 void setup() {
+  Serial.begin(115200);
+
+#ifdef TARGET_SPIRIT
   pinMode(PIN_BTN_FEED,  INPUT);
   pinMode(PIN_BTN_TUMMY, INPUT);
   pinMode(PIN_BTN_BACK,  INPUT);
-  
+
   pinMode(PIN_D1, OUTPUT);
   digitalWrite(PIN_D1, LOW);
   pinMode(PIN_D2, OUTPUT);
@@ -673,6 +987,22 @@ void setup() {
 
   digitalWrite(PIN_MOTOR_FWD, LOW);
   digitalWrite(PIN_MOTOR_BWD, LOW);
+#endif
+
+#ifdef TARGET_FEATHER
+  // Enable NeoPixel power (NEOPIXEL_I2C_POWER is defined by board variant)
+  pinMode(NEOPIXEL_I2C_POWER, OUTPUT);
+  digitalWrite(NEOPIXEL_I2C_POWER, HIGH);
+
+  // Initialize NeoPixel
+  pixel.begin();
+  pixel.setBrightness(50);  // 0-255, start at ~20%
+  pixel.setPixelColor(0, 0, 0, 0);  // Start with LED off
+  pixel.show();
+#endif
+
+  // Initialize I2S microphone (both targets)
+  setupI2SMic();
 
   setupWiFi();
   setupOTA();
@@ -680,8 +1010,31 @@ void setup() {
 }
 
 void loop() {
+  // Handle WiFi reconnection if disconnected
+  if (WiFi.status() != WL_CONNECTED) {
+    if (wasConnected) {
+      Serial.println("[WiFi] Connection lost!");
+      wasConnected = false;
+    }
+
+    unsigned long now = millis();
+    if (now - lastReconnectAttempt >= RECONNECT_INTERVAL_MS) {
+      lastReconnectAttempt = now;
+      Serial.println("[WiFi] Attempting to reconnect...");
+
+      if (wifiMulti.run() == WL_CONNECTED) {
+        wasConnected = true;
+        Serial.print("[WiFi] Reconnected to: ");
+        Serial.println(WiFi.SSID());
+        Serial.print("[WiFi] IP address: ");
+        Serial.println(WiFi.localIP());
+      }
+    }
+    return;  // Skip normal loop operations while disconnected
+  }
+
   ArduinoOTA.handle();
-  WiFiClient client = tcpServer.available();
+  WiFiClient client = tcpServer.accept();
   if (client) {
     handleClient(client);
     client.stop();

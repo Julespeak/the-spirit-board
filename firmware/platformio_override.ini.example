@@ -1,0 +1,19 @@
+; Copy this file to platformio_override.ini and fill in your credentials
+; platformio_override.ini is gitignored
+;
+; You can configure up to 4 WiFi networks. The board will try each in order
+; until one connects. This is useful for:
+;   - Home network as primary, mobile hotspot as backup
+;   - Multiple locations (home, office, etc.)
+;
+; Only WIFI_SSID_1/WIFI_PASSWORD_1 is required. Others are optional.
+
+[credentials]
+build_flags =
+    -D WIFI_SSID_1=YourPrimaryNetwork
+    -D WIFI_PASSWORD_1=PrimaryPassword
+    ; Uncomment to add backup networks:
+    ; -D WIFI_SSID_2=BackupNetwork
+    ; -D WIFI_PASSWORD_2=BackupPassword
+    ; -D WIFI_SSID_3=MobileHotspot
+    ; -D WIFI_PASSWORD_3=HotspotPassword

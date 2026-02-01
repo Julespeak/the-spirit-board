@@ -7,40 +7,82 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The S.P.I.R.I.T. Board (Special Peripheral Interface for Receiving Internet Transmissions) is an open-source ESP32-C6 based controller for the original 1998 Furby toy. The project consists of three main parts:
 
 - **Hardware** (`hardware/`): KiCAD 9.0 PCB design files, component libraries, and outputs
-- **Firmware** (`firmware/`): Arduino-based firmware for the ESP32-C6 microcontroller
+- **Firmware** (`firmware/`): PlatformIO-based firmware for the ESP32-C6 microcontroller
 - **Software** (`software/`): Python library for controlling the Spirit Board over TCP
 
 ## Firmware Development
 
-### Building and Flashing
+### Building and Flashing with PlatformIO
 
-The firmware is an Arduino `.ino` sketch located at `firmware/invoker/invoker.ino`:
+The firmware uses [PlatformIO](https://platformio.org/) for building and uploading. Source code is in `firmware/src/main.cpp`.
 
-- **Arduino IDE**: Open `firmware/invoker/invoker.ino` and upload to ESP32-C6 board
-- **OTA Updates**: After initial flash, the board enables OTA updates over WiFi
-  - OTA hostname: `TheSPIRITBoard` (configurable in `OTA_HOSTNAME`)
-  - Default password: `admin` (configurable in `OTA_PASSWORD`)
-  - Use Arduino IDE's network port feature for OTA uploads
+**Build environments:**
+| Environment | Target | Upload Method |
+|-------------|--------|---------------|
+| `spirit` (default) | S.P.I.R.I.T. Board | OTA (WiFi) |
+| `spirit_usb` | S.P.I.R.I.T. Board | USB Serial |
+| `feather` | Adafruit Feather ESP32-C6 | OTA (WiFi) |
+| `feather_usb` | Adafruit Feather ESP32-C6 | USB Serial |
+
+**Common commands:**
+```bash
+cd firmware
+
+# Build (default: spirit target)
+uv run pio run
+
+# Build specific environment
+uv run pio run -e feather
+
+# Upload via OTA
+uv run pio run -e spirit -t upload
+
+# Upload via USB
+uv run pio run -e spirit_usb -t upload
+
+# Monitor serial output
+uv run pio device monitor
+```
+
+PlatformIO is installed as part of the project's uv environment (see `pyproject.toml`).
 
 ### WiFi Configuration
 
-Update WiFi credentials in `firmware/invoker/invoker.ino`:
-```cpp
-const char* WIFI_SSID     = "RenegadeScience_Guest";
-const char* WIFI_PASSWORD = "ForScience!";
+WiFi credentials are externalized to a gitignored file. The firmware supports up to 4 networks with automatic fallback - it will try each in order until one connects, and automatically reconnect if the connection drops.
+
+1. Copy `firmware/platformio_override.ini.example` to `firmware/platformio_override.ini`
+2. Edit with your credentials:
+```ini
+[credentials]
+build_flags =
+    -D WIFI_SSID_1=PrimaryNetwork
+    -D WIFI_PASSWORD_1=PrimaryPassword
+    -D WIFI_SSID_2=BackupNetwork
+    -D WIFI_PASSWORD_2=BackupPassword
 ```
+
+Only the first network is required; additional networks are optional backups.
+
+### OTA Updates
+
+After initial USB flash, the board enables OTA updates over WiFi:
+- **Spirit Board hostname**: `TheSPIRITBoard.local`
+- **Feather hostname**: `feather.local`
+- **Default password**: `admin` (configurable in source)
 
 ### TCP Control Protocol
 
 The invoker firmware listens on **TCP port 5000** and accepts ASCII hex commands. Each command starts with a control byte:
 
-- `01` - Initialize coprocessor
-- `02 <nibbles>` - Send nibble stream to Furby sound coprocessor
-- `03 <64-bit hex>` - Drive motor forward (duration in microseconds)
-- `04 <64-bit hex>` - Drive motor backward (duration in microseconds)
-- `05` - Read event timeline (RTS/CTS edges, data nibbles, motor events with timestamps)
-- `06 <5-bit pattern>` - Debug: directly drive CTS + D1-D4 pins
-- `07` - Poll /RTS + sensor buttons and store snapshot
+- `01` - Initialize coprocessor (Spirit only)
+- `02 <nibbles>` - Send nibble stream to Furby sound coprocessor (Spirit only)
+- `03 <64-bit hex>` - Drive motor forward (duration in microseconds) (Spirit only)
+- `04 <64-bit hex>` - Drive motor backward (duration in microseconds) (Spirit only)
+- `05` - Read event timeline (RTS/CTS edges, data nibbles, motor events) (Spirit only)
+- `06 <5-bit pattern>` - Debug: directly drive CTS + D1-D4 pins (Spirit only)
+- `07` - Poll /RTS + sensor buttons and store snapshot (Spirit only)
+- `08 <count>` - Blink LED N times (Feather only)
+- `09 <RRGGBB>` - Set RGB LED color (Feather only)
 - `FF` - Ping (responds with `31337`)
 
 **Example testing with netcat:**
@@ -75,7 +117,7 @@ When adding new components to the library (from Mouser archives):
 
 ### Firmware Architecture
 
-The `invoker` firmware (`firmware/invoker/`) is responsible for:
+The `invoker` firmware (`firmware/src/main.cpp`) is responsible for:
 
 - **Nibble bus interface**: Drives the Furby sound coprocessor using timed 4-bit nibble vectors over D1-D4 pins
 - **RTS/CTS handshaking**: Monitors `/RTS` pin to detect sound completion and bus readiness; toggles `/CTS` for handshake
@@ -83,29 +125,39 @@ The `invoker` firmware (`firmware/invoker/`) is responsible for:
 - **WiFi connectivity**: Connects to WiFi and provides OTA updates
 - **TCP server**: Exposes control protocol on port 5000 for remote commanding
 
+### Conditional Compilation
+
+The firmware supports two targets via preprocessor defines:
+
+- `TARGET_SPIRIT` - Full Furby control: nibble bus, motor, sensors
+- `TARGET_FEATHER` - Network testing only: ping, LED blink command
+
 ### Pin Mapping
 
-Pin assignments are hard-coded at the top of `firmware/invoker/invoker.ino`:
+Pin assignments are defined at the top of `firmware/src/main.cpp`:
 
 ```cpp
-// Furby bus pins
+// Furby bus pins (Spirit only)
 PIN_D1, PIN_D2, PIN_D3, PIN_D4    // 4-bit nibble data
 PIN_CTS                            // Clear To Send (output)
 PIN_RTS                            // Request To Send (input, read-only)
 PIN_INIT                           // Coprocessor init
 
-// Motor control
+// Motor control (Spirit only)
 PIN_MOTOR_FWD, PIN_MOTOR_BWD
 
-// Sensor buttons
+// Sensor buttons (Spirit only)
 PIN_BTN_FEED, PIN_BTN_TUMMY, PIN_BTN_BACK
+
+// Status LED (Feather only)
+PIN_LED
 ```
 
-**When changing hardware:** Update these pin constants in `invoker.ino` and verify footprints in `hardware/`.
+**When changing hardware:** Update these pin constants in `main.cpp` and verify footprints in `hardware/`.
 
 ### Timing Parameters
 
-Critical timing constants in `firmware/invoker/invoker.ino`:
+Critical timing constants in `firmware/src/main.cpp`:
 
 ```cpp
 RTS_TIMEOUT_US      // Timeout waiting for /RTS response
@@ -192,10 +244,10 @@ The timeline uses 64-bit microsecond timestamps from `esp_timer_get_time()` for 
 
 ### Example Notebooks
 
-- `notebooks/SpiritBoardExample.ipynb` - Canonical examples of all library functions
+- `notebooks/SpiritBoardExample.ipynb` - Canonical examples of all Spirit Board library functions
+- `notebooks/FeatherExample.ipynb` - Feather testbed examples (ping, LED control, RGB)
 - `notebooks/SpiritBoardWorking.ipynb` - Working copy (git-ignored) for development
 
-<<<<<<< HEAD
 ## Data Analysis Environment
 
 The project uses `uv` (a fast Python package manager) to manage the Jupyter Lab environment for data analysis and notebook development.
@@ -215,11 +267,11 @@ uv run jupyter lab
 ### Dependencies
 
 The environment is defined in `pyproject.toml` and includes:
-- **jupyterlab** (≥4.5.1) - Interactive notebook environment
-- **ipympl** (≥0.9.8) - Interactive matplotlib widgets (fixes widget compatibility issues)
-- **numpy** (≥2.2.6) - Numerical computing
-- **matplotlib** (≥3.10.8) - Plotting and visualization
-- **pandas** (≥2.2.0) - Data analysis and manipulation
+- **jupyterlab** (>=4.5.1) - Interactive notebook environment
+- **ipympl** (>=0.9.8) - Interactive matplotlib widgets (fixes widget compatibility issues)
+- **numpy** (>=2.2.6) - Numerical computing
+- **matplotlib** (>=3.10.8) - Plotting and visualization
+- **pandas** (>=2.2.0) - Data analysis and manipulation
 
 ### Adding New Dependencies
 
@@ -232,7 +284,7 @@ uv add <package-name>  # e.g., uv add scikit-learn
 
 ### Python Version
 
-The project requires Python ≥3.10. The `.python-version` file pins the environment to Python 3.10 for consistency.
+The project requires Python >=3.10. The `.python-version` file pins the environment to Python 3.10 for consistency.
 
 ### Using Interactive Widgets
 
@@ -243,26 +295,18 @@ Enable matplotlib widgets in notebooks with:
 
 This enables interactive plots and widgets using the `ipympl` backend, which resolves common widget compatibility issues in Jupyter Lab.
 
-=======
->>>>>>> refs/remotes/origin/main
 ## Reference Documentation
 
 Key files to read when working on this project:
 
 - `README.md` - Project purpose, KiCAD workflow, useful links
-<<<<<<< HEAD
 - **`docs/soundcard_spec.md`** - Complete Furby soundcard protocol specification with timing diagrams and command examples
-=======
->>>>>>> refs/remotes/origin/main
-- `firmware/invoker/README.md` - Firmware module overview and responsibilities
-- `firmware/invoker/invoker.ino` - Complete firmware implementation with protocol details
+- `firmware/README.md` - Firmware build instructions and protocol reference
+- `firmware/src/main.cpp` - Complete firmware implementation with protocol details
 - `software/spirit_board.py` - Python library for controlling the board
 - `.github/copilot-instructions.md` - Detailed architectural notes and integration points
 - `hardware/the-spirit-board.kicad_sch` - Complete hardware schematic
-<<<<<<< HEAD
 - `notebooks/FurbyAdvancedScraping.ipynb` - Logic analyzer captures with RTS timing analysis
-=======
->>>>>>> refs/remotes/origin/main
 
 External references (see `README.md` for URLs):
 - ESP32-C6 technical reference manual and datasheet
